@@ -1,4 +1,15 @@
 allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
   esbuild: true
+  prisma: true
   sharp: true
-  workerd: true
+  unrs-resolver: true
+  workerd: false
+minimumReleaseAgeExclude:
+  - '@supabase/auth-js@2.116.0'
+  - '@supabase/functions-js@2.116.0'
+  - '@supabase/postgrest-js@2.116.0'
+  - '@supabase/realtime-js@2.116.0'
+  - '@supabase/storage-js@2.116.0'
+  - '@supabase/supabase-js@2.116.0'
