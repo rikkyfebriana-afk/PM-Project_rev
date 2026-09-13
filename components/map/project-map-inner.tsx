@@ -31,7 +31,7 @@ export default function ProjectMapInner({
   onSelect,
 }: {
   projects: MapProject[];
-  onSelect: (city: string) => void;
+  onSelect: (projectId: string) => void;
 }) {
   return (
     <div className="relative h-[370px] overflow-hidden">
@@ -48,7 +48,7 @@ export default function ProjectMapInner({
         />
         {projects.map((project) => (
           <Marker
-            key={project.city}
+            key={project.id}
             position={[project.latitude, project.longitude]}
             icon={markerIcons[project.tone]}
           >
@@ -61,7 +61,7 @@ export default function ProjectMapInner({
                 <div className="mt-3 flex gap-3">
                   <button
                     type="button"
-                    onClick={() => onSelect(project.city)}
+                    onClick={() => onSelect(project.id)}
                     className="text-xs font-semibold text-[#d85832]"
                   >
                     Lihat proyek

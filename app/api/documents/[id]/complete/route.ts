@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getCurrentUser, isLocalDemoMode } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
+import { accessibleProjectWhere } from '@/lib/projects/access';
 import { getSupabaseAdmin } from '@/lib/storage/supabase-admin';
 
 export const runtime = 'nodejs';
@@ -27,17 +28,7 @@ export async function POST(
       deletedAt: null,
       ...(user.role === 'ADMIN' ? {} : { uploadedById: user.id }),
       project: {
-        deletedAt: null,
-        ...(user.role === 'ADMIN'
-          ? {}
-          : user.role === 'PROJECT_MANAGER'
-            ? {
-                OR: [
-                  { projectManagerId: user.id },
-                  { members: { some: { userId: user.id } } },
-                ],
-              }
-            : { members: { some: { userId: user.id } } }),
+        is: accessibleProjectWhere(user),
       },
     },
     select: {

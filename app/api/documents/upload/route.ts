@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { DocumentCategory } from '@/generated/prisma/enums';
 import { getCurrentUser, isLocalDemoMode } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
+import { editableProjectWhere } from '@/lib/projects/access';
 import { getSupabaseAdmin } from '@/lib/storage/supabase-admin';
 
 export const runtime = 'nodejs';
@@ -44,25 +45,14 @@ function safeFileName(name: string) {
   return normalized.slice(-140) || 'document';
 }
 
-async function canAccessProject(
-  userId: string,
-  role: string,
+async function canUploadToProject(
+  user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>,
   projectId: string,
 ) {
   return prisma.project.findFirst({
     where: {
       id: projectId,
-      deletedAt: null,
-      ...(role === 'ADMIN'
-        ? {}
-        : role === 'PROJECT_MANAGER'
-          ? {
-              OR: [
-                { projectManagerId: userId },
-                { members: { some: { userId } } },
-              ],
-            }
-          : { members: { some: { userId } } }),
+      ...editableProjectWhere(user),
     },
     select: { id: true },
   });
@@ -93,7 +83,7 @@ export async function POST(request: Request) {
   }
 
   const { projectId, category, fileName, mimeType, sizeBytes } = parsed.data;
-  const project = await canAccessProject(user.id, user.role, projectId);
+  const project = await canUploadToProject(user, projectId);
   if (!project)
     return NextResponse.json(
       { error: 'Project tidak ditemukan atau akses ditolak.' },

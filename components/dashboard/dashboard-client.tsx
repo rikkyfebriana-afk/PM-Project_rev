@@ -12,199 +12,23 @@ import {
   Search,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ProjectMap } from '@/components/map/project-map';
+import { buildCsv } from '@/lib/csv';
+import type {
+  DashboardData,
+  DashboardHealthFilter,
+  DashboardProject,
+} from '@/lib/dashboard/types';
 
-const portfolioStatus = [
-  { label: 'Active', value: '18', note: 'All live projects', tone: 'navy' },
-  { label: 'On track', value: '12', note: '67% of portfolio', tone: 'green' },
-  { label: 'Attention', value: '3', note: 'Needs follow-up', tone: 'amber' },
-  { label: 'Critical', value: '3', note: 'Immediate action', tone: 'red' },
-  { label: 'Closed', value: '5', note: 'This quarter', tone: 'slate' },
-];
-
-const finance = [
-  { label: 'PO Value', value: 'Rp12.5B', change: '+8.2%', direction: 'up' },
-  {
-    label: 'Budget',
-    value: 'Rp8.7B',
-    change: '69.6% of PO',
-    direction: 'flat',
-  },
-  { label: 'Actual', value: 'Rp6.1B', change: '70.1% used', direction: 'flat' },
-  {
-    label: 'Forecast',
-    value: 'Rp8.4B',
-    change: 'Rp300M under',
-    direction: 'up',
-  },
-  { label: 'Margin', value: '32.8%', change: '+1.4 pts', direction: 'up' },
-];
-
-const alerts = [
-  {
-    title: 'Material shortage',
-    count: 12,
-    detail: '4 projects impacted',
-    tone: 'red',
-  },
-  {
-    title: 'Delayed project',
-    count: 2,
-    detail: 'Avg. 8 days behind',
-    tone: 'red',
-  },
-  {
-    title: 'FAT punch list',
-    count: 3,
-    detail: '18 items remaining',
-    tone: 'amber',
-  },
-  {
-    title: 'Budget risk',
-    count: 2,
-    detail: 'Forecast over 95%',
-    tone: 'amber',
-  },
-];
-
-const mapProjects = [
-  {
-    city: 'Cirebon',
-    project: 'Substation Upgrade',
-    latitude: -6.732,
-    longitude: 108.552,
-    tone: 'green' as const,
-  },
-  {
-    city: 'Bogor',
-    project: 'Control Panel',
-    latitude: -6.597,
-    longitude: 106.806,
-    tone: 'amber' as const,
-  },
-  {
-    city: 'Bekasi',
-    project: 'Switchgear Revamp',
-    latitude: -6.238,
-    longitude: 106.975,
-    tone: 'red' as const,
-  },
-  {
-    city: 'Surabaya',
-    project: 'Plant Automation',
-    latitude: -7.257,
-    longitude: 112.752,
-    tone: 'green' as const,
-  },
-];
-
-const milestones = [
-  {
-    day: '18',
-    month: 'Sep',
-    label: 'FAT Cirebon',
-    meta: 'PT Nusantara Grid',
-    state: 'upcoming',
-  },
-  {
-    day: '22',
-    month: 'Sep',
-    label: 'Delivery Bogor',
-    meta: 'Control Panel',
-    state: 'upcoming',
-  },
-  {
-    day: '25',
-    month: 'Sep',
-    label: 'Installation Bekasi',
-    meta: 'Switchgear Revamp',
-    state: 'risk',
-  },
-  {
-    day: '30',
-    month: 'Sep',
-    label: 'BAST Cirebon',
-    meta: 'Final handover',
-    state: 'upcoming',
-  },
-];
-
-type Health = 'On track' | 'Attention' | 'Critical';
-type HealthFilter = 'All' | Health;
-
-const projects = [
-  {
-    id: 'PCC-024',
-    name: 'Cirebon Substation',
-    city: 'Cirebon',
-    progress: 72,
-    material: 92,
-    phase: 'PROD',
-    finish: '30 Sep',
-    health: 'On track' as Health,
-    gm: 28,
-  },
-  {
-    id: 'PCC-031',
-    name: 'Bogor Control Panel',
-    city: 'Bogor',
-    progress: 58,
-    material: 74,
-    phase: 'PROC',
-    finish: '15 Oct',
-    health: 'Attention' as Health,
-    gm: 24,
-  },
-  {
-    id: 'PCC-018',
-    name: 'Bekasi Switchgear',
-    city: 'Bekasi',
-    progress: 81,
-    material: 100,
-    phase: 'FAT',
-    finish: '25 Sep',
-    health: 'Critical' as Health,
-    gm: 19,
-  },
-  {
-    id: 'PCC-029',
-    name: 'Surabaya Automation',
-    city: 'Surabaya',
-    progress: 66,
-    material: 88,
-    phase: 'PROD',
-    finish: '22 Oct',
-    health: 'On track' as Health,
-    gm: 31,
-  },
-  {
-    id: 'PCC-035',
-    name: 'Karawang MCC Upgrade',
-    city: 'Karawang',
-    progress: 43,
-    material: 65,
-    phase: 'ENG',
-    finish: '08 Nov',
-    health: 'Attention' as Health,
-    gm: 26,
-  },
-  {
-    id: 'PCC-012',
-    name: 'Semarang Protection',
-    city: 'Semarang',
-    progress: 91,
-    material: 100,
-    phase: 'INST',
-    finish: '20 Sep',
-    health: 'On track' as Health,
-    gm: 34,
-  },
-];
-
-function filterProjects(query: string, health: HealthFilter) {
+function filterProjects(
+  projects: DashboardProject[],
+  query: string,
+  health: DashboardHealthFilter,
+) {
   const needle = query.trim().toLowerCase();
   return projects.filter((project) => {
     const matchesText =
@@ -214,6 +38,10 @@ function filterProjects(query: string, health: HealthFilter) {
       );
     return matchesText && (health === 'All' || project.health === health);
   });
+}
+
+function formatPercent(value: number) {
+  return `${Number.isInteger(value) ? value : value.toFixed(1)}%`;
 }
 
 type ModelContextApi = {
@@ -230,13 +58,22 @@ type ModelContextApi = {
   ) => void | Promise<void>;
 };
 
-export function DashboardClient() {
+export function DashboardClient({ data }: { data: DashboardData }) {
+  const {
+    portfolioStatus,
+    finance,
+    alerts,
+    mapProjects,
+    milestones,
+    projects,
+  } = data;
   const [searchTerm, setSearchTerm] = useState('');
-  const [healthFilter, setHealthFilter] = useState<HealthFilter>('All');
+  const [healthFilter, setHealthFilter] =
+    useState<DashboardHealthFilter>('All');
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const visibleProjects = useMemo(
-    () => filterProjects(searchTerm, healthFilter),
-    [searchTerm, healthFilter],
+    () => filterProjects(projects, searchTerm, healthFilter),
+    [projects, searchTerm, healthFilter],
   );
 
   useEffect(() => {
@@ -281,8 +118,8 @@ export function DashboardClient() {
             )
           )
             throw new Error('Health filter is invalid.');
-          const safeHealth = health as HealthFilter;
-          const matches = filterProjects(query, safeHealth);
+          const safeHealth = health as DashboardHealthFilter;
+          const matches = filterProjects(projects, query, safeHealth);
           setSearchTerm(query);
           setHealthFilter(safeHealth);
           return {
@@ -297,7 +134,7 @@ export function DashboardClient() {
     );
     void Promise.resolve(registration).catch(() => undefined);
     return () => lifecycle.abort();
-  }, []);
+  }, [projects]);
 
   function exportPortfolio() {
     const header = [
@@ -315,18 +152,14 @@ export function DashboardClient() {
       project.id,
       project.name,
       project.city,
-      `${project.progress}%`,
-      `${project.material}%`,
+      formatPercent(project.progress),
+      formatPercent(project.material),
       project.phase,
       project.finish,
       project.health,
-      `${project.gm}%`,
+      formatPercent(project.gm),
     ]);
-    const csv = [header, ...rows]
-      .map((row) =>
-        row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(','),
-      )
-      .join('\n');
+    const csv = buildCsv([header, ...rows]);
     const url = URL.createObjectURL(
       new Blob([csv], { type: 'text/csv;charset=utf-8' }),
     );
@@ -358,7 +191,7 @@ export function DashboardClient() {
             </h2>
           </div>
           <p className="hidden text-[11px] text-[#7c8994] sm:block">
-            Last synced 2 minutes ago
+            {data.demoMode ? 'Demo snapshot' : 'Live PostgreSQL data'}
           </p>
         </div>
         <div className="grid overflow-hidden border border-[#dde3e7] bg-white sm:grid-cols-2 xl:grid-cols-5">
@@ -404,14 +237,22 @@ export function DashboardClient() {
                 </p>
                 <span
                   className={
-                    item.direction === 'up' ? 'text-[#6bd0b4]' : 'text-white/50'
+                    item.direction === 'up'
+                      ? 'text-[#6bd0b4]'
+                      : item.direction === 'down'
+                        ? 'text-[#ff8b76]'
+                        : 'text-white/50'
                   }
                 >
-                  {item.direction === 'up' ? '↗' : '•'}
+                  {item.direction === 'up'
+                    ? '↗'
+                    : item.direction === 'down'
+                      ? '↘'
+                      : '•'}
                 </span>
               </div>
               <p
-                className={`mt-2 text-[10px] ${item.direction === 'up' ? 'text-[#6bd0b4]' : 'text-white/45'}`}
+                className={`mt-2 text-[10px] ${item.direction === 'up' ? 'text-[#6bd0b4]' : item.direction === 'down' ? 'text-[#ff8b76]' : 'text-white/45'}`}
               >
                 {item.change}
               </p>
@@ -427,20 +268,19 @@ export function DashboardClient() {
               <p className="section-kicker">Live footprint</p>
               <h2 className="section-title">Project location map</h2>
             </div>
-            <button
-              type="button"
+            <Link
+              href="/projects"
               className="text-[11px] font-semibold text-[#d85832] hover:underline"
             >
               View all locations
-            </button>
+            </Link>
           </div>
           <ProjectMap
             projects={mapProjects}
-            onSelect={(city) => {
-              setSearchTerm(city);
-              setSelectedProject(
-                projects.find((item) => item.city === city)?.id ?? null,
-              );
+            onSelect={(projectId) => {
+              const project = projects.find((item) => item.id === projectId);
+              setSearchTerm(project?.city ?? '');
+              setSelectedProject(projectId);
               document
                 .getElementById('portfolio-table')
                 ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -579,7 +419,12 @@ export function DashboardClient() {
               aria-label="Filter by health"
             >
               {(
-                ['All', 'On track', 'Attention', 'Critical'] as HealthFilter[]
+                [
+                  'All',
+                  'On track',
+                  'Attention',
+                  'Critical',
+                ] as DashboardHealthFilter[]
               ).map((filter) => (
                 <button
                   key={filter}
@@ -662,11 +507,11 @@ export function DashboardClient() {
                           <progress
                             value={project.progress}
                             max="100"
-                            aria-label={`${project.name} progress ${project.progress}%`}
+                            aria-label={`${project.name} progress ${formatPercent(project.progress)}`}
                             className="project-progress"
                           />
                           <span className="w-8 font-mono text-[10px] font-semibold text-[#3d505d]">
-                            {project.progress}%
+                            {formatPercent(project.progress)}
                           </span>
                         </div>
                       </td>
@@ -675,7 +520,7 @@ export function DashboardClient() {
                           <PackageCheck
                             className={`size-3.5 ${project.material < 80 ? 'text-[#d7962f]' : 'text-[#1b8e75]'}`}
                           />
-                          {project.material}%
+                          {formatPercent(project.material)}
                         </div>
                       </td>
                       <td className="px-4 py-4">
@@ -699,7 +544,7 @@ export function DashboardClient() {
                       <td
                         className={`px-4 py-4 text-right font-mono text-[11px] font-semibold ${project.gm < 22 ? 'text-[#d14f3c]' : 'text-[#2b4656]'}`}
                       >
-                        {project.gm}%
+                        {formatPercent(project.gm)}
                       </td>
                       <td className="px-4 py-4">
                         <button
@@ -747,7 +592,7 @@ export function DashboardClient() {
                         Progress
                       </span>
                       <strong className="mt-1 block font-mono text-[11px] text-[#314856]">
-                        {project.progress}%
+                        {formatPercent(project.progress)}
                       </strong>
                     </div>
                     <div>
@@ -755,20 +600,20 @@ export function DashboardClient() {
                         Material
                       </span>
                       <strong className="mt-1 block font-mono text-[11px] text-[#314856]">
-                        {project.material}%
+                        {formatPercent(project.material)}
                       </strong>
                     </div>
                     <div>
                       <span className="block uppercase tracking-wider">GM</span>
                       <strong className="mt-1 block font-mono text-[11px] text-[#314856]">
-                        {project.gm}%
+                        {formatPercent(project.gm)}
                       </strong>
                     </div>
                   </div>
                   <progress
                     value={project.progress}
                     max="100"
-                    aria-label={`${project.name} progress ${project.progress}%`}
+                    aria-label={`${project.name} progress ${formatPercent(project.progress)}`}
                     className="project-progress mt-4"
                   />
                 </article>

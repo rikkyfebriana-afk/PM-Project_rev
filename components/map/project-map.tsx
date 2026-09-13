@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 
 export type MapProject = {
+  id: string;
   city: string;
   project: string;
   tone: 'green' | 'amber' | 'red';
@@ -24,7 +25,7 @@ export function ProjectMap({
   onSelect,
 }: {
   projects: MapProject[];
-  onSelect: (city: string) => void;
+  onSelect: (projectId: string) => void;
 }) {
   return <ProjectMapInner projects={projects} onSelect={onSelect} />;
 }

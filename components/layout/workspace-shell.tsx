@@ -37,10 +37,6 @@ const navigation = [
   { label: 'Reports', href: '/reports', icon: PackageCheck },
 ];
 
-const pageTitles: Record<string, string> = Object.fromEntries(
-  navigation.map((item) => [item.href, item.label]),
-);
-
 type WorkspaceShellProps = {
   children: ReactNode;
   user: { displayName: string; username: string; role: string };
@@ -48,6 +44,10 @@ type WorkspaceShellProps = {
 
 export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
   const pathname = usePathname();
+  const pageTitle =
+    navigation.find(
+      (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
+    )?.label ?? 'Workspace';
   const initials = user.displayName
     .split(/\s+/)
     .map((part) => part[0])
@@ -152,7 +152,7 @@ export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
               Project Control Center
             </p>
             <h1 className="mt-1 truncate text-lg font-semibold tracking-[-0.025em] text-[#132738] md:text-xl">
-              {pageTitles[pathname] ?? 'Workspace'}
+              {pageTitle}
             </h1>
           </div>
           <div className="hidden items-center gap-2 border border-[#dce4e7] bg-[#f6f8f9] px-3 py-2 text-xs font-medium text-[#5e707c] md:flex">
@@ -177,7 +177,8 @@ export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
         >
           {[navigation[0], navigation[1], navigation[3], navigation[9]].map(
             ({ label, href, icon: Icon }) => {
-              const active = pathname === href;
+              const active =
+                pathname === href || pathname.startsWith(`${href}/`);
               return (
                 <Link
                   key={href}

@@ -19,11 +19,13 @@ Persyaratan: Node.js 22 dan pnpm.
 
 1. Salin `.env.example` menjadi `.env`.
 2. Isi `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, dan konfigurasi Supabase.
+   Gunakan `APP_TIME_ZONE="Asia/Jakarta"` agar overdue dan milestone mengikuti hari kerja WIB.
 3. Buat atau kunci bucket private sesuai batas MIME/ukuran dari `.env`:
 
    ```bash
    pnpm storage:configure
    ```
+
 4. Instal dependency dan siapkan database:
 
    ```bash
@@ -41,13 +43,32 @@ Persyaratan: Node.js 22 dan pnpm.
 
 Untuk melihat UI tanpa database pada mesin development, set `DEMO_MODE="true"`. Flag ini sengaja diabaikan saat `NODE_ENV=production`.
 
+Mode demo bersifat read-only. Tombol dan form dapat dipreview, tetapi server menolak seluruh mutation agar user demo palsu tidak pernah dipakai sebagai foreign key database.
+
+## Project register
+
+Halaman `/projects` sudah memakai query PostgreSQL nyata dengan fallback demo lokal. Fitur yang tersedia:
+
+- pencarian dan filter health, status, serta phase;
+- tampilan table desktop dan card mobile;
+- export CSV yang dilindungi dari formula injection;
+- create dan edit melalui Server Actions tervalidasi Zod;
+- nilai uang berbasis `Decimal(18,2)`, validasi jadwal, koordinat berpasangan, dan closed-state invariant;
+- optimistic locking menggunakan `updatedAt` untuk mencegah lost update;
+- soft archive dan audit log dalam transaksi yang sama;
+- Dashboard membaca portfolio, finance, milestone, alert, material readiness, dan marker map dari scope project yang sama.
+
 ## Database dan akses
 
 Schema berada di `prisma/schema.prisma`. Fondasi akses menyediakan tiga role:
 
 - `ADMIN`: seluruh project dan pengaturan sistem.
-- `PROJECT_MANAGER`: project yang dikelola atau project tempat ia menjadi anggota.
+- `PROJECT_MANAGER`: dapat membaca project yang dikelola atau diikuti, tetapi hanya dapat mengubah operational control pada project yang resmi dikelolanya.
 - `VIEWER`: hanya project tempat ia menjadi anggota.
+
+Hanya `ADMIN` yang dapat membuat project, mengubah master/finance/assignment, dan mengarsipkan project. Upload dokumen hanya tersedia untuk Admin atau Project Manager resmi; Viewer tetap read-only.
+
+Assignment `projectManagerId` dan `ProjectMember` sengaja dipisahkan. Mengganti manager langsung mencabut akses yang berasal dari assignment lama; akses tim yang eksplisit tetap dikelola melalui membership tersendiri.
 
 Nilai uang dan kuantitas menggunakan tipe `Decimal`, bukan floating point. Dokumen tersimpan sebagai object private; database hanya menyimpan metadata dan object key. Endpoint download menghasilkan signed URL berumur 60 detik setelah otorisasi project diperiksa.
 
@@ -95,6 +116,7 @@ Branch yang disarankan:
 ```bash
 pnpm dev          # development server
 pnpm lint         # ESLint
+pnpm test         # project validation tests
 pnpm build        # Prisma generate + production build
 pnpm db:generate  # regenerate Prisma client
 pnpm db:migrate   # create/apply a new development migration after schema changes
