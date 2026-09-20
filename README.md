@@ -58,6 +58,27 @@ Halaman `/projects` sudah memakai query PostgreSQL nyata dengan fallback demo lo
 - soft archive dan audit log dalam transaksi yang sama;
 - Dashboard membaca portfolio, finance, milestone, alert, material readiness, dan marker map dari scope project yang sama.
 
+## BoQ import dan approval baseline
+
+Halaman `/boq` menyediakan [template Excel](public/templates/boq-import-template.xlsx), preview validasi, riwayat revisi per project, dan approval baseline. Alurnya:
+
+1. Pilih project, lalu unggah file `.xlsx` atau `.csv` (maksimum 5 MB dan 1.000 item). File dibaca di browser untuk memilih sheet, memetakan kolom, dan menampilkan error per baris sebelum dikirim.
+2. Saat import dikonfirmasi, file asli diunggah langsung ke bucket private Supabase melalui signed URL. Server mengunduh dokumen berstatus `READY`, membaca sheet terpilih, lalu memvalidasi ulang data sebelum menyimpan revisi `DRAFT`. Data preview dari browser tidak dipercaya sebagai sumber akhir.
+3. Import identik pada project yang sama dideteksi dari hash isi BoQ dan tidak membuat revisi duplikat. Revisi Draft sebelumnya menjadi `SUPERSEDED`; baseline `APPROVED` yang sedang berlaku tidak berubah sampai ada approval baru.
+4. Hanya `ADMIN` yang dapat menyetujui Draft. Approval menjadikan revisi tersebut baseline `APPROVED`, menggantikan baseline lama, dan menyinkronkan item bertipe `MATERIAL` ke Material Register dalam satu transaksi.
+
+Kolom wajib: `Item No`, `Item Type`, `Description`, `Unit`, `Quantity`, dan `Unit Price`. `Item Code` wajib dan unik untuk item `MATERIAL`; `Item Type` harus `MATERIAL`, `SERVICE`, atau `OTHER`. `Quantity` harus positif (maksimum empat desimal), sedangkan `Unit Price` non-negatif (maksimum dua desimal). Header boleh berada dalam 30 baris pertama. Formula pada kolom input, baris/kolom tersembunyi, dan merged cell pada area data ditolak. `Line Total` dihitung ulang oleh server dari kuantitas dan harga satuan, bukan dipercaya dari file.
+
+`ADMIN` dapat mengimpor ke seluruh project; `PROJECT_MANAGER` hanya ke project yang resmi dikelolanya; `VIEWER` hanya dapat membaca. Mode demo mengizinkan preview tetapi tidak menyimpan file, revisi, atau approval. File sumber BoQ mengikuti otorisasi dokumen project dan tidak dibuka sebagai URL publik.
+
+## Material Register
+
+Halaman `/materials` menampilkan kebutuhan material dari baseline BoQ yang telah disetujui, kuantitas ordered/received/installed, supplier, nomor PO, tanggal kebutuhan/ETA, status, dan indikator shortage/late ETA. Admin dan Project Manager resmi dapat memperbarui progress material pada project yang berhak mereka edit; Viewer hanya membaca. Perubahan memakai validasi server, optimistic locking, dan audit log.
+
+Saat baseline baru disetujui, material dicocokkan berdasarkan kode yang dinormalisasi. Kebutuhan, deskripsi, satuan, dan tautan BoQ diperbarui; data operasional seperti supplier, PO, dan pergerakan kuantitas yang sudah tercatat dipertahankan. Item yang hilang dari baseline baru dinonaktifkan, bukan dihapus. Approval ditolak bila satuan material yang sudah bergerak berubah atau kebutuhan baru lebih kecil daripada kuantitas yang sudah diterima/terpasang; rekonsiliasi harus dilakukan terlebih dahulu.
+
+Jika revisi baseline menaikkan kebutuhan, status `RECEIVED`/`INSTALLED` otomatis kembali ke `PARTIAL` bila kuantitas sebelumnya tidak lagi memenuhi kebutuhan. Pengguna juga dapat menandai `SHORTAGE` secara eksplisit ketika received quantity masih di bawah kebutuhan.
+
 ## Database dan akses
 
 Schema berada di `prisma/schema.prisma`. Fondasi akses menyediakan tiga role:
@@ -93,6 +114,8 @@ Upload memakai alur dua fase agar file besar tidak melewati batas body Vercel Fu
 
 6. Deploy. Build command default sudah menjalankan `prisma generate` lalu `next build`.
 
+Migrasi `20260914000100_boq_import_metadata` menambahkan metadata sumber/approval BoQ, tipe item, serta constraint dan index Material Register. Jalankan `pnpm db:deploy` terhadap database target **sebelum** merilis kode yang menggunakan skema baru. Untuk upload BoQ, pastikan `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`, dan `MAX_UPLOAD_BYTES` terisi. Jalankan `pnpm storage:configure` terhadap project Supabase target; bucket harus tetap private. Batas bucket boleh lebih besar untuk dokumen umum, tetapi import BoQ tetap dibatasi 5 MB oleh aplikasi.
+
 Branch yang disarankan:
 
 - `main`: production dan protected branch.
@@ -109,7 +132,16 @@ Branch yang disarankan:
 - Route workspace memverifikasi session di server; proxy hanya menjadi pemeriksaan awal.
 - Bucket dokumen wajib private dan service role key hanya boleh digunakan di server.
 - Upload tidak melewati Function Vercel, dibatasi tipe dan ukuran, diberi nama object acak, diverifikasi setelah tersimpan, dicatat dalam audit log, serta diperiksa berdasarkan akses project.
+- Server memvalidasi ulang file BoQ private yang telah terunggah; preview browser saja tidak dapat membuat baseline atau mengubah material.
 - Production sebaiknya mengaktifkan branch protection, Vercel deployment protection untuk preview sensitif, backup database, dan key rotation berkala.
+
+## Batasan tahap ini
+
+- Import BoQ menerima `.xlsx` dan `.csv`; format Excel lama `.xls`, macro-enabled `.xlsm`, dan workbook berpassword belum didukung.
+- Preview menampilkan maksimum 100 item sekaligus, tetapi seluruh item dalam batas 1.000 baris tetap divalidasi.
+- Riwayat BoQ pada halaman menampilkan seluruh baseline aktif serta 100 revisi `SUPERSEDED` terbaru di portofolio; penghitung total revisi tetap mencakup seluruh data.
+- Rekonsiliasi material yang berkonflik masih harus ditangani melalui data sumber/operasional sebelum baseline baru dapat disetujui; belum ada workflow otomatis untuk menyatukan kode material yang berubah.
+- Modul production, FAT, delivery, site work, finance report, serta PDF/Excel report lanjutan belum menjadi bagian dari alur BoQ ini.
 
 ## Perintah utama
 

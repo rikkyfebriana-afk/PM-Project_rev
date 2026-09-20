@@ -44,6 +44,12 @@ enum BoqStatus {
   SUPERSEDED
 }
 
+enum BoqItemType {
+  MATERIAL
+  SERVICE
+  OTHER
+}
+
 enum MaterialStatus {
   PLANNED
   ORDERED
@@ -109,6 +115,8 @@ model User {
   assignedActions    ActionItem[]    @relation("ActionAssignee")
   uploadedDocuments  Document[]
   auditLogs          AuditLog[]
+  createdBoqs        Boq[]           @relation("BoqCreatedBy")
+  approvedBoqs       Boq[]           @relation("BoqApprovedBy")
 
   @@index([isActive])
 }
@@ -178,33 +186,46 @@ model ProjectMember {
 }
 
 model Boq {
-  id         String    @id @default(cuid())
-  projectId  String
-  version    Int
-  status     BoqStatus @default(DRAFT)
-  sourceHash String?
-  approvedAt DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  items      BoqItem[]
+  id               String    @id @default(cuid())
+  projectId        String
+  createdById      String?
+  approvedById     String?
+  sourceDocumentId String?   @unique
+  version          Int
+  status           BoqStatus @default(DRAFT)
+  sourceHash       String?
+  sourceFileName   String?
+  sourceSheetName  String?
+  approvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy        User?     @relation("BoqCreatedBy", fields: [createdById], references: [id])
+  approvedBy       User?     @relation("BoqApprovedBy", fields: [approvedById], references: [id])
+  sourceDocument   Document? @relation(fields: [sourceDocumentId], references: [id])
+  items            BoqItem[]
 
   @@unique([projectId, version])
+  @@unique([projectId, sourceHash])
   @@index([projectId, status])
+  @@index([createdById])
+  @@index([approvedById])
 }
 
 model BoqItem {
-  id          String     @id @default(cuid())
+  id          String      @id @default(cuid())
   boqId       String
+  itemType    BoqItemType @default(MATERIAL)
+  sortOrder   Int         @default(0)
   itemNo      String
   itemCode    String?
   description String
   unit        String
-  quantity    Decimal    @db.Decimal(18, 4)
-  unitPrice   Decimal    @db.Decimal(18, 2)
-  lineTotal   Decimal    @db.Decimal(18, 2)
-  boq         Boq        @relation(fields: [boqId], references: [id], onDelete: Cascade)
-  materials   Material[]
+  quantity    Decimal     @db.Decimal(18, 4)
+  unitPrice   Decimal     @db.Decimal(18, 2)
+  lineTotal   Decimal     @db.Decimal(18, 2)
+  boq         Boq         @relation(fields: [boqId], references: [id], onDelete: Cascade)
+  material    Material?
 
   @@unique([boqId, itemNo])
   @@index([boqId])
@@ -213,8 +234,9 @@ model BoqItem {
 model Material {
   id               String         @id @default(cuid())
   projectId        String
-  boqItemId        String?
+  boqItemId        String?        @unique
   code             String?
+  normalizedCode   String?
   description      String
   unit             String
   requiredQty      Decimal        @db.Decimal(18, 4)
@@ -226,12 +248,16 @@ model Material {
   needByDate       DateTime?      @db.Date
   estimatedArrival DateTime?      @db.Date
   status           MaterialStatus @default(PLANNED)
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   boqItem          BoqItem?       @relation(fields: [boqItemId], references: [id])
   documents        Document[]
 
+  @@unique([projectId, normalizedCode])
   @@index([projectId, status])
+  @@index([projectId, isActive])
   @@index([needByDate])
 }
 
@@ -294,6 +320,7 @@ model Document {
   milestone    Milestone?       @relation(fields: [milestoneId], references: [id])
   material     Material?        @relation(fields: [materialId], references: [id])
   uploadedBy   User             @relation(fields: [uploadedById], references: [id])
+  sourceBoq    Boq?
 
   @@unique([bucket, objectKey])
   @@index([projectId, category, status])

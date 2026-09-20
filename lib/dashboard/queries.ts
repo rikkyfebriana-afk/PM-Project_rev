@@ -47,6 +47,7 @@ export async function getDashboardData(
     orderBy: [{ updatedAt: 'desc' }, { code: 'asc' }],
     include: {
       materials: {
+        where: { isActive: true },
         select: {
           status: true,
           requiredQty: true,
@@ -269,14 +270,14 @@ export async function getDashboardData(
     projects: projects
       .filter((project) => project.status !== 'CANCELLED')
       .map((project) => {
-        const required = project.materials.reduce(
-          (total, material) => total.plus(material.requiredQty),
-          new Prisma.Decimal(0),
-        );
-        const received = project.materials.reduce(
-          (total, material) => total.plus(material.receivedQty),
-          new Prisma.Decimal(0),
-        );
+        const readiness = project.materials
+          .filter((material) => material.requiredQty.gt(0))
+          .map((material) =>
+            Prisma.Decimal.min(
+              1,
+              material.receivedQty.dividedBy(material.requiredQty),
+            ).times(100),
+          );
         const gm = project.poValue.isZero()
           ? 0
           : project.poValue
@@ -289,7 +290,16 @@ export async function getDashboardData(
           name: project.name,
           city: cityFromAddress(project.address, '—'),
           progress: project.progressPct.toNumber(),
-          material: Math.min(100, percentage(received, required)),
+          material: readiness.length
+            ? readiness
+                .reduce(
+                  (total, value) => total.plus(value),
+                  new Prisma.Decimal(0),
+                )
+                .dividedBy(readiness.length)
+                .toDecimalPlaces(1)
+                .toNumber()
+            : 0,
           phase: phaseShort[project.phase] ?? project.phase,
           finish: project.plannedFinish
             ? new Intl.DateTimeFormat('en-GB', {

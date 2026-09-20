@@ -1,24 +1,12 @@
-import { ModuleOverview } from '@/components/modules/module-overview';
-export default function MaterialsPage() {
-  return (
-    <ModuleOverview
-      eyebrow="Supply readiness"
-      title="Materials"
-      description="Pantau requirement, purchase order, supplier, ETA, penerimaan, instalasi, dan shortage terhadap BoQ proyek."
-      metrics={[
-        {
-          label: 'Material readiness',
-          value: '84%',
-          note: 'Weighted received vs required',
-        },
-        { label: 'Shortages', value: '12', note: 'Across 4 impacted projects' },
-        { label: 'Late ETA', value: '7', note: 'Past required-on-site date' },
-      ]}
-      workflow={[
-        'Map material requirements from approved BoQ',
-        'Update ordered, received, and installed quantities',
-        'Escalate shortages and delayed ETA',
-      ]}
-    />
-  );
+import { updateMaterialAction } from '@/app/actions/materials';
+import { MaterialRegister } from '@/components/materials/material-register';
+import { requireUser } from '@/lib/auth/require-user';
+import { getMaterialWorkspaceData } from '@/lib/materials/queries';
+
+export const metadata = { title: 'Material Register' };
+
+export default async function MaterialsPage() {
+  const user = await requireUser();
+  const data = await getMaterialWorkspaceData(user);
+  return <MaterialRegister data={data} updateAction={updateMaterialAction} />;
 }
