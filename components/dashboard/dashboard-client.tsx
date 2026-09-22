@@ -335,7 +335,9 @@ export function DashboardClient({ data }: { data: DashboardData }) {
           </div>
           <div className="m-5 flex items-center gap-3 bg-[#f1f5f6] p-3 text-[10px] text-[#687681]">
             <Clock3 className="size-4 text-[#17364a]" />
-            <span>5 items have been open for more than 48 hours.</span>
+            <Link href="/actions" className="underline">
+              Lihat temuan dan tindak lanjut di Action Center.
+            </Link>
           </div>
         </article>
       </section>
@@ -352,10 +354,15 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             </h2>
           </div>
           <div className="hidden items-center gap-2 text-[10px] font-medium text-[#74818b] sm:flex">
-            <CalendarDays className="size-3.5" /> 4 key dates
+            <CalendarDays className="size-3.5" /> {milestones.length} key dates
           </div>
         </div>
         <div className="grid md:grid-cols-2 xl:grid-cols-4">
+          {milestones.length === 0 && (
+            <p className="p-6 text-sm text-slate-500">
+              Belum ada milestone dalam 30 hari ke depan.
+            </p>
+          )}
           {milestones.map((milestone, index) => (
             <article
               key={milestone.label}

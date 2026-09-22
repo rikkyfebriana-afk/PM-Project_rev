@@ -149,6 +149,7 @@ model Project {
   budgetValue      Decimal         @default(0) @db.Decimal(18, 2)
   actualCost       Decimal         @default(0) @db.Decimal(18, 2)
   forecastCost     Decimal         @default(0) @db.Decimal(18, 2)
+  costOpeningBalance Decimal       @default(0) @db.Decimal(18, 2)
   address          String?
   latitude         Decimal?        @db.Decimal(9, 6)
   longitude        Decimal?        @db.Decimal(9, 6)
@@ -167,6 +168,7 @@ model Project {
   actionItems      ActionItem[]
   documents        Document[]
   auditLogs        AuditLog[]
+  costEntries      CostEntry[]
 
   @@index([status, health])
   @@index([projectManagerId])
@@ -271,10 +273,13 @@ model Milestone {
   progressPct Decimal         @default(0) @db.Decimal(5, 2)
   status      MilestoneStatus @default(UPCOMING)
   notes       String?
+  referenceNo String?
+  responsible String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   documents   Document[]
+  punchItems  ActionItem[]
 
   @@index([projectId, plannedDate])
   @@index([status, plannedDate])
@@ -290,14 +295,34 @@ model ActionItem {
   dueAt       DateTime?
   assigneeId  String?
   resolvedAt  DateTime?
+  milestoneId String?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   assignee    User?          @relation("ActionAssignee", fields: [assigneeId], references: [id])
+  milestone   Milestone?     @relation(fields: [milestoneId], references: [id])
 
   @@index([projectId, status])
   @@index([assigneeId, status])
   @@index([priority, dueAt])
+  @@index([milestoneId, status])
+}
+
+model CostEntry {
+  id String @id @default(cuid())
+  projectId String
+  requestId String @unique
+  category String
+  description String
+  referenceNo String?
+  amount Decimal @db.Decimal(18, 2)
+  spentAt DateTime @db.Date
+  createdAt DateTime @default(now())
+  voidedAt DateTime?
+  voidReason String?
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, spentAt])
 }
 
 model Document {

@@ -56,7 +56,11 @@ export async function getDashboardData(
       },
       actionItems: {
         where: { status: { not: 'RESOLVED' } },
-        select: { id: true, title: true },
+        select: {
+          id: true,
+          title: true,
+          milestone: { select: { phase: true } },
+        },
       },
     },
   });
@@ -125,9 +129,12 @@ export async function getDashboardData(
         ) / delayed.length,
       )
     : 0;
-  const fatActions = active
-    .filter((project) => project.phase === 'FAT')
-    .reduce((count, project) => count + project.actionItems.length, 0);
+  const fatActions = active.reduce(
+    (count, project) =>
+      count +
+      project.actionItems.filter((a) => a.milestone?.phase === 'FAT').length,
+    0,
+  );
   const budgetRisk = active.filter(
     (project) =>
       !project.budgetValue.isZero() &&

@@ -15,7 +15,7 @@ Dashboard operasional untuk memonitor portfolio project, BoQ, material, producti
 
 ## Menjalankan secara lokal
 
-Persyaratan: Node.js 22 dan pnpm.
+Persyaratan: Node.js 22.18+ dan pnpm 11.19.
 
 1. Salin `.env.example` menjadi `.env`.
 2. Isi `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, dan konfigurasi Supabase.
@@ -79,6 +79,26 @@ Saat baseline baru disetujui, material dicocokkan berdasarkan kode yang dinormal
 
 Jika revisi baseline menaikkan kebutuhan, status `RECEIVED`/`INSTALLED` otomatis kembali ke `PARTIAL` bila kuantitas sebelumnya tidak lagi memenuhi kebutuhan. Pengguna juga dapat menandai `SHORTAGE` secara eksplisit ketika received quantity masih di bawah kebutuhan.
 
+## Production, FAT, Delivery, Site Work, dan Action Center
+
+Keempat halaman operasional kini memakai milestone PostgreSQL: buat paket pekerjaan/pemeriksaan, tetapkan PIC dan target selesai, lalu perbarui progress serta hasilnya. Milestone ini juga menjadi sumber jadwal dashboard. Progress keseluruhan project tetap ditetapkan PM di Project Register sesuai bobot pekerjaan perusahaan.
+
+- Status selesai wajib memiliki progress 100%. Pembaruan memakai pemeriksaan versi dan audit log.
+- FAT, Delivery, dan BAST harus memiliki nomor referensi serta dokumen pendukung berstatus READY sebelum selesai. Simpan milestone awal, unggah dokumen pada detail, lalu tandai selesai.
+- Punch list dapat dibuat pada milestone dan diselesaikan dari detail atau Action Center. Milestone dengan punch list terbuka tidak dapat ditutup.
+- BAST menunggu seluruh milestone instalasi selesai. Penutupan BAST tidak otomatis menutup project; Admin mengonfirmasi status CLOSED di Project Register.
+- Foto dan dokumen pendukung disimpan pada private storage. Unduhan memeriksa ulang akses project.
+
+## Finance, Reports, dan Settings
+
+Finance menyediakan ledger biaya per project, kategori, tanggal transaksi, nomor invoice/referensi, serta uraian. Posting biaya memperbarui actual cost dalam transaksi yang sama. Nominal memakai Decimal; request duplikat tidak menggandakan biaya. Saldo actual sebelum migrasi dipertahankan sebagai opening balance. Setelah ledger tersedia, actual cost tidak boleh ditimpa melalui Project Register.
+
+Admin dapat memperbarui PO/budget/forecast dan membatalkan biaya dengan alasan. Pembatalan tetap disimpan dalam ledger serta audit log. Forecast di bawah actual ditandai untuk ditinjau.
+
+Reports menghasilkan PDF dan Excel di server untuk portfolio, material aktif, milestone, dan ledger. Filter tanggal milestone mengikuti planned finish; ledger mengikuti spent date. Portfolio/material adalah snapshot saat ekspor. Batas 5.000 baris per ekspor. Nilai Excel yang melampaui presisi 15 digit disimpan sebagai teks agar nominal tidak berubah. PDF memakai font Latin; karakter di luar cakupan font ditandai dan tersedia utuh di Excel.
+
+Settings menyediakan pembuatan akun, aktivasi/nonaktivasi, membership project, perubahan password sendiri, dan 50 audit log terakhir. Nonaktivasi akun dan perubahan password mencabut sesi. Membership memberikan akses baca; hak edit PM mengikuti assignment manager di Project Register. Menu mobile menyediakan akses ke seluruh modul.
+
 ## Database dan akses
 
 Schema berada di `prisma/schema.prisma`. Fondasi akses menyediakan tiga role:
@@ -102,6 +122,8 @@ Upload memakai alur dua fase agar file besar tidak melewati batas body Vercel Fu
 
 ## Deployment GitHub → Vercel
 
+Repository tujuan: [rikkyfebriana-afk/PM-Project](https://github.com/rikkyfebriana-afk/PM-Project).
+
 1. Push repository ini ke repository GitHub private.
 2. Import repository tersebut di Vercel sebagai project Next.js.
 3. Tambahkan seluruh variable dari `.env.example` pada Vercel Environment Variables. Jangan tambahkan `DEMO_MODE=true` ke production.
@@ -115,6 +137,10 @@ Upload memakai alur dua fase agar file besar tidak melewati batas body Vercel Fu
 6. Deploy. Build command default sudah menjalankan `prisma generate` lalu `next build`.
 
 Migrasi `20260914000100_boq_import_metadata` menambahkan metadata sumber/approval BoQ, tipe item, serta constraint dan index Material Register. Jalankan `pnpm db:deploy` terhadap database target **sebelum** merilis kode yang menggunakan skema baru. Untuk upload BoQ, pastikan `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`, dan `MAX_UPLOAD_BYTES` terisi. Jalankan `pnpm storage:configure` terhadap project Supabase target; bucket harus tetap private. Batas bucket boleh lebih besar untuk dokumen umum, tetapi import BoQ tetap dibatasi 5 MB oleh aplikasi.
+
+Migrasi `20260920000100_operations_finance` menambahkan metadata operasional, relasi punch list, dan ledger biaya. Sebelum deployment jalankan `pnpm deploy:check`; setelah konfigurasi lengkap, `pnpm deploy:check -- --live` memeriksa koneksi PostgreSQL dan private bucket tanpa menampilkan secret. Gunakan `.env.example` sebagai daftar variable; masukkan nilai production ke Vercel. Jangan gunakan data uji atau kredensial smoke test pada deployment.
+
+GitHub Actions pada `.github/workflows/ci.yml` menjalankan lint, tests, production build, dan HTTP acceptance tests setiap push/pull request. Pengujian migrasi menggunakan PostgreSQL WASM lokal sementara (PGlite), bukan database deployment. Setelah build, `pnpm test:e2e` menguji login, hak akses, milestone, punch list, ledger biaya, serta unduhan PDF/Excel secara otomatis. Untuk pemeriksaan manual, `pnpm test:server` menyediakan aplikasi uji terisolasi di localhost:3001 dengan data sintetis di memori; data hilang ketika proses dihentikan.
 
 Branch yang disarankan:
 
@@ -141,7 +167,8 @@ Branch yang disarankan:
 - Preview menampilkan maksimum 100 item sekaligus, tetapi seluruh item dalam batas 1.000 baris tetap divalidasi.
 - Riwayat BoQ pada halaman menampilkan seluruh baseline aktif serta 100 revisi `SUPERSEDED` terbaru di portofolio; penghitung total revisi tetap mencakup seluruh data.
 - Rekonsiliasi material yang berkonflik masih harus ditangani melalui data sumber/operasional sebelum baseline baru dapat disetujui; belum ada workflow otomatis untuk menyatukan kode material yang berubah.
-- Modul production, FAT, delivery, site work, finance report, serta PDF/Excel report lanjutan belum menjadi bagian dari alur BoQ ini.
+- Deployment live tetap memerlukan repository yang dapat ditulis, database PostgreSQL, private Supabase bucket, serta akses project Vercel. Pengujian lokal tidak membuktikan konektivitas/konfigurasi production.
+- Versi awal memakai update progress kumulatif, bukan work-order manufacturing, serial-number logistics, sistem akuntansi, atau tanda tangan elektronik tersertifikasi.
 
 ## Perintah utama
 

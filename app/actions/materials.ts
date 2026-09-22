@@ -60,7 +60,7 @@ export async function updateMaterialAction(
       });
       if (!locator) return { outcome: 'not-found' as const };
 
-      await transaction.$queryRaw`
+      await transaction.$executeRaw`
         SELECT pg_advisory_xact_lock(hashtextextended(${locator.projectId}, 0))
       `;
       const lockedProjects = await transaction.$queryRaw<Array<{ id: string }>>`

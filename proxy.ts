@@ -12,13 +12,19 @@ const protectedRoutes = [
   '/site-work',
   '/finance',
   '/reports',
+  '/actions',
+  '/settings',
 ];
 
 export function proxy(request: NextRequest) {
   if (process.env.NODE_ENV !== 'production' && process.env.DEMO_MODE === 'true')
     return NextResponse.next();
 
-  const cookieName = process.env.SESSION_COOKIE_NAME || '__Host-pcc_session';
+  const cookieName =
+    process.env.SESSION_COOKIE_NAME ||
+    (process.env.NODE_ENV === 'production'
+      ? '__Host-pcc_session'
+      : 'pcc_session');
   const hasSessionCookie = request.cookies.has(cookieName);
   const isProtected = protectedRoutes.some(
     (route) =>
@@ -28,8 +34,6 @@ export function proxy(request: NextRequest) {
 
   if (isProtected && !hasSessionCookie)
     return NextResponse.redirect(new URL('/login', request.url));
-  if (request.nextUrl.pathname === '/login' && hasSessionCookie)
-    return NextResponse.redirect(new URL('/dashboard', request.url));
   return NextResponse.next();
 }
 
@@ -46,5 +50,7 @@ export const config = {
     '/site-work/:path*',
     '/finance/:path*',
     '/reports/:path*',
+    '/actions/:path*',
+    '/settings/:path*',
   ],
 };

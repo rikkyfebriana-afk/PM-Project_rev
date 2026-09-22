@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "dev": "next dev",
@@ -17,7 +17,10 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "storage:configure": "tsx scripts/configure-storage.ts"
+    "storage:configure": "tsx scripts/configure-storage.ts",
+    "deploy:check": "node scripts/check-env.ts",
+    "test:server": "node scripts/smoke-server.ts",
+    "test:e2e": "node scripts/smoke-http.ts"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
@@ -32,10 +35,12 @@
     "date-fns": "4.1.0",
     "dotenv": "17.2.3",
     "embla-carousel-react": "8.5.2",
+    "exceljs": "^4.4.0",
     "input-otp": "1.4.2",
     "leaflet": "1.9.4",
     "lucide-react": "1.31.0",
     "next": "16.3.4",
+    "pdf-lib": "^1.17.1",
     "pg": "8.16.3",
     "react": "19.2.6",
     "react-day-picker": "9.8.1",
@@ -50,6 +55,8 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11",
     "@tailwindcss/postcss": "4.2.1",
     "@types/leaflet": "1.9.22",
     "@types/node": "22.19.19",

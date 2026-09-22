@@ -7,6 +7,7 @@ import { getCurrentUser, isLocalDemoMode } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
 import { editableProjectWhere } from '@/lib/projects/access';
 import { getSupabaseAdmin } from '@/lib/storage/supabase-admin';
+import { lockEditableProject } from '@/lib/operations/transaction';
 
 export const runtime = 'nodejs';
 
@@ -22,6 +23,7 @@ const allowedMimeTypes = new Set([
 
 const uploadSchema = z.object({
   projectId: z.string().min(1).max(100),
+  milestoneId: z.string().min(1).max(128).optional(),
   category: z.enum(
     Object.values(DocumentCategory) as [
       DocumentCategory,
@@ -82,7 +84,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const { projectId, category, fileName, mimeType, sizeBytes } = parsed.data;
+  const { projectId, milestoneId, category, fileName, mimeType, sizeBytes } =
+    parsed.data;
   const project = await canUploadToProject(user, projectId);
   if (!project)
     return NextResponse.json(
@@ -107,9 +110,17 @@ export async function POST(request: Request) {
 
   try {
     const document = await prisma.$transaction(async (tx) => {
+      await lockEditableProject(tx, projectId, user);
+      if (milestoneId) {
+        const milestone = await tx.milestone.findFirst({
+          where: { id: milestoneId, projectId },
+        });
+        if (!milestone) throw new Error('Milestone tidak valid.');
+      }
       const created = await tx.document.create({
         data: {
           projectId,
+          milestoneId,
           uploadedById: user.id,
           category,
           originalName: fileName,

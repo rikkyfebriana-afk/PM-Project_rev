@@ -19,10 +19,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { logoutAction } from '@/app/actions/auth';
-import { Button } from '@/components/ui/button';
 
 const navigation = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -35,6 +34,7 @@ const navigation = [
   { label: 'Site Work', href: '/site-work', icon: Wrench },
   { label: 'Finance', href: '/finance', icon: BarChart3 },
   { label: 'Reports', href: '/reports', icon: PackageCheck },
+  { label: 'Action Center', href: '/actions', icon: Bell },
 ];
 
 type WorkspaceShellProps = {
@@ -44,10 +44,11 @@ type WorkspaceShellProps = {
 
 export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
   const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
   const pageTitle =
     navigation.find(
       (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
-    )?.label ?? 'Workspace';
+    )?.label ?? (pathname === '/settings' ? 'Settings' : 'Workspace');
   const initials = user.displayName
     .split(/\s+/)
     .map((part) => part[0])
@@ -106,12 +107,12 @@ export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
         </nav>
 
         <div className="border-t border-white/10 p-3">
-          <button
-            type="button"
+          <Link
+            href="/settings"
             className="flex w-full items-center gap-3 px-3 py-2.5 text-sm text-white/55 hover:text-white"
           >
             <Settings className="size-4" /> Settings
-          </button>
+          </Link>
           <div className="mt-2 border border-white/10 bg-white/5 p-3">
             <div className="flex items-center gap-3">
               <span className="grid size-9 place-items-center bg-[#dce6ea] text-xs font-bold text-[#153246]">
@@ -158,15 +159,47 @@ export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
           <div className="hidden items-center gap-2 border border-[#dce4e7] bg-[#f6f8f9] px-3 py-2 text-xs font-medium text-[#5e707c] md:flex">
             <ShieldCheck className="size-4 text-[#1c8d74]" /> Secure workspace
           </div>
-          <Button
-            aria-label="Notifications"
-            variant="outline"
-            size="icon-lg"
-            className="relative border-[#dce2e6] bg-white shadow-none"
+          <Link
+            href="/actions"
+            aria-label="Action Center"
+            className="grid size-10 place-items-center border border-[#dce2e6] bg-white"
           >
             <Bell className="size-[17px]" />
-            <span className="absolute right-2 top-2 size-1.5 rounded-full bg-[#e35645] ring-2 ring-white" />
-          </Button>
+          </Link>
+          <button
+            type="button"
+            aria-label="Menu navigasi"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="border border-slate-200 px-3 py-2 text-sm lg:hidden"
+          >
+            Menu
+          </button>
+          {menuOpen && (
+            <nav
+              aria-label="Semua modul"
+              className="absolute right-4 top-[76px] max-h-[70vh] w-64 overflow-y-auto border border-slate-200 bg-white p-3 shadow-xl lg:hidden"
+            >
+              {[
+                ...navigation,
+                { label: 'Settings', href: '/settings', icon: Settings },
+              ].map(({ label, href }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setMenuOpen(false)}
+                  className="block px-3 py-2 text-sm hover:bg-slate-100"
+                >
+                  {label}
+                </Link>
+              ))}
+              <form action={logoutAction}>
+                <button className="px-3 py-2 text-sm text-red-700">
+                  Sign out
+                </button>
+              </form>
+            </nav>
+          )}
         </header>
 
         {children}

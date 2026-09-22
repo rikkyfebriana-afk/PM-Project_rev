@@ -119,7 +119,8 @@ export async function commitBoqImportAction(
     if (error || !data || data.size !== Number(document.sizeBytes)) {
       return {
         status: 'error',
-        message: 'File sumber di private storage tidak cocok dengan metadata upload.',
+        message:
+          'File sumber di private storage tidak cocok dengan metadata upload.',
       };
     }
     sourceBytes = new Uint8Array(await data.arrayBuffer());
@@ -160,23 +161,20 @@ export async function commitBoqImportAction(
             row: issue.sourceRow,
             message: issue.message,
           })),
-        ...source.rows
-          .flatMap((row) =>
-            row.issues
-              .filter((issue) => issue.severity === 'error')
-              .map((issue) => ({
-                field: issue.field ?? ('rows' as const),
-                row: row.sourceRow,
-                message: issue.message,
-              })),
-          ),
+        ...source.rows.flatMap((row) =>
+          row.issues
+            .filter((issue) => issue.severity === 'error')
+            .map((issue) => ({
+              field: issue.field ?? ('rows' as const),
+              row: row.sourceRow,
+              message: issue.message,
+            })),
+        ),
       ].slice(0, 100),
     };
   }
 
-  const sourceChecksum = createHash('sha256')
-    .update(sourceBytes)
-    .digest('hex');
+  const sourceChecksum = createHash('sha256').update(sourceBytes).digest('hex');
   const payload: BoqImportPayload = {
     projectId: request.data.projectId,
     fileName: document.originalName,
@@ -204,7 +202,7 @@ export async function commitBoqImportAction(
     const outcome = await prisma.$transaction(
       async (transaction) => {
         // Serialize version allocation and duplicate detection per project.
-        await transaction.$queryRaw`
+        await transaction.$executeRaw`
           SELECT pg_advisory_xact_lock(hashtextextended(${parsed.data.projectId}, 0))
         `;
 
@@ -412,7 +410,7 @@ export async function approveBoqRevisionAction(
         });
         if (!locator) return { outcome: 'not-found' as const };
 
-        await transaction.$queryRaw`
+        await transaction.$executeRaw`
           SELECT pg_advisory_xact_lock(hashtextextended(${locator.projectId}, 0))
         `;
         const lockedProjects = await transaction.$queryRaw<

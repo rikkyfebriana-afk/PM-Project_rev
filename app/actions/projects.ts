@@ -164,7 +164,10 @@ export async function createProjectAction(
   try {
     const created = await prisma.$transaction(async (transaction) => {
       const project = await transaction.project.create({
-        data: fullProjectData(parsed.data),
+        data: {
+          ...fullProjectData(parsed.data),
+          costOpeningBalance: new Prisma.Decimal(parsed.data.actualCost),
+        },
         select: { id: true, code: true, name: true },
       });
       await transaction.auditLog.create({
@@ -223,6 +226,7 @@ export async function updateProjectAction(
           name: true,
           updatedAt: true,
           projectManagerId: true,
+          actualCost: true,
         },
       });
       if (!current) return { outcome: 'not-found' as const };
@@ -248,13 +252,27 @@ export async function updateProjectAction(
         user.role === 'ADMIN'
           ? fullProjectData(parsed.data)
           : operationalProjectData(parsed.data);
+      const hasLedger = await transaction.costEntry.count({
+        where: { projectId: current.id },
+      });
+      if (
+        user.role === 'ADMIN' &&
+        hasLedger &&
+        !current.actualCost.eq(parsed.data.actualCost)
+      )
+        return { outcome: 'ledger-conflict' as const };
       const updated = await transaction.project.updateMany({
         where: {
           id: current.id,
           updatedAt: current.updatedAt,
           deletedAt: null,
         },
-        data,
+        data: {
+          ...data,
+          ...(user.role === 'ADMIN' && !hasLedger
+            ? { costOpeningBalance: new Prisma.Decimal(parsed.data.actualCost) }
+            : {}),
+        },
       });
       if (updated.count !== 1) return { outcome: 'conflict' as const };
 
@@ -297,6 +315,12 @@ export async function updateProjectAction(
       return {
         status: 'error',
         message: 'Project tidak ditemukan atau Anda tidak memiliki akses edit.',
+      };
+    if (result.outcome === 'ledger-conflict')
+      return {
+        status: 'error',
+        message:
+          'Actual cost memiliki ledger. Gunakan Finance untuk mencatat atau membatalkan biaya.',
       };
     if (result.outcome === 'conflict')
       return {
