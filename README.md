@@ -1,5 +1,7 @@
 # Project Control Center
 
+PM-Project_rev — Data Base Project Manager.
+
 Dashboard operasional untuk memonitor portfolio project, BoQ, material, production, FAT, delivery, site work, finance, milestone, action item, dan dokumen proyek.
 
 ## Arsitektur
@@ -122,7 +124,7 @@ Upload memakai alur dua fase agar file besar tidak melewati batas body Vercel Fu
 
 ## Deployment GitHub → Vercel
 
-Repository tujuan: [rikkyfebriana-afk/PM-Project](https://github.com/rikkyfebriana-afk/PM-Project).
+Repository tujuan: [rikkyfebriana-afk/PM-Project_rev](https://github.com/rikkyfebriana-afk/PM-Project_rev).
 
 1. Push repository ini ke repository GitHub private.
 2. Import repository tersebut di Vercel sebagai project Next.js.
