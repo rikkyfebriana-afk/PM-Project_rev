@@ -59,6 +59,32 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
       ),
       /check constraint/,
     );
+    await db.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
+    await db.exec(
+      await readFile(
+        new URL('../scripts/supabase-security.sql', import.meta.url),
+        'utf8',
+      ),
+    );
+    const security = await db.query<{
+      tablename: string;
+      rowsecurity: boolean;
+    }>(
+      `SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname='public'`,
+    );
+    assert.equal(security.rows.length, 12);
+    assert.ok(security.rows.every((row) => row.rowsecurity));
+    await db.exec('SET ROLE anon');
+    await assert.rejects(
+      db.query('SELECT * FROM public."User"'),
+      /permission denied/,
+    );
+    await db.exec('RESET ROLE; SET ROLE authenticated');
+    await assert.rejects(
+      db.query('SELECT * FROM public."Project"'),
+      /permission denied/,
+    );
+    await db.exec('RESET ROLE');
   } finally {
     await db.close();
   }

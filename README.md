@@ -126,6 +126,8 @@ Upload memakai alur dua fase agar file besar tidak melewati batas body Vercel Fu
 
 Repository tujuan: [rikkyfebriana-afk/PM-Project_rev](https://github.com/rikkyfebriana-afk/PM-Project_rev).
 
+Status bootstrap Supabase dan langkah baseline Prisma wajib sebelum migrasi berikutnya tersedia di [panduan aktivasi](docs/supabase-activation.md). Untuk project yang sudah di-bootstrap lewat MCP, jangan langsung menjalankan `db:deploy` sebelum menyelesaikan baseline pada panduan tersebut.
+
 Jika build Vercel sebelumnya gagal dengan `ERR_INVALID_URL` pada `app/layout.tsx`, periksa `APP_URL`: nilainya harus URL lengkap seperti `https://nama-project.vercel.app`, bukan string kosong. Metadata kini menggunakan domain production/deployment dari Vercel sebagai fallback ketika nilai itu kosong atau tidak valid. Fallback ini hanya untuk metadata, bukan pengganti konfigurasi database, storage, atau pemeriksaan kesiapan production.
 
 1. Push repository ini ke repository GitHub private.
