@@ -1,7 +1,12 @@
 import type { Metadata } from 'next';
+import { resolveMetadataUrl } from '@/lib/metadata-url';
 import './globals.css';
 
-const appUrl = new URL(process.env.APP_URL ?? 'http://localhost:3000');
+const appUrl = resolveMetadataUrl({
+  APP_URL: process.env.APP_URL,
+  VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
+  VERCEL_URL: process.env.VERCEL_URL,
+});
 
 export const metadata: Metadata = {
   metadataBase: appUrl,
