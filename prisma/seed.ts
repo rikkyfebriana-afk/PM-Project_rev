@@ -3,6 +3,7 @@ import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 import { hash } from 'bcryptjs';
+import { postgresConfig } from '../lib/postgres-config';
 
 const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 if (!connectionString)
@@ -18,7 +19,7 @@ if (!username || !password || password.length < 12)
   );
 
 const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString }),
+  adapter: new PrismaPg(postgresConfig(connectionString)),
 });
 const passwordHash = await hash(password, 12);
 

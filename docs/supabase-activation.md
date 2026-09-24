@@ -4,7 +4,13 @@ Project: `pm-project-rev` (`tgnqvcgvhncelrjtnjgs`), Singapore, Free project crea
 
 On 2026-09-23 the four committed Prisma SQL migrations were applied together through Supabase MCP as `pcc_initial_prisma_schema_with_private_access`, followed in the same operation by `scripts/supabase-security.sql`. The 12 application tables exist, all have RLS enabled, and `anon`/`authenticated` cannot SELECT them. Security Advisor reports only the intentional informational notice "RLS Enabled No Policy": business access is through the Next.js server and its project authorization, not the Data API. Do not add permissive policies just to clear this notice.
 
-## Required before the next Prisma deployment
+## Baseline completed (2026-09-24)
+
+Both session and transaction pooler connections were verified with the official Supabase CA and TLS certificate validation enabled. The four `migrate resolve --applied` commands below completed successfully; `prisma migrate status` reports the database up to date. Do not repeat the baseline commands. The security script was reapplied and all 13 public tables (including `_prisma_migrations`) have RLS enabled and no SELECT grants for anon/authenticated.
+
+The public CA is checked in at `certs/supabase-ca.crt`, downloaded from the Database Settings certificate link (`https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt`). Runtime, seed, and deployment checks share `lib/postgres-config.ts`; Prisma migrations use strict certificate validation. Next.js tracing explicitly includes the certificate. Never disable TLS validation to work around a certificate error.
+
+## Bootstrap reference (already completed)
 
 Supabase MCP migration history is NOT Prisma migration history. Once the real `DIRECT_URL` is configured locally, baseline these already-applied migrations using Prisma's supported resolve command. Do not run `migrate dev`, reset the database, or run `db:deploy` before this baseline step on this project.
 

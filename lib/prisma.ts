@@ -2,6 +2,7 @@ import 'server-only';
 
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@/generated/prisma/client';
+import { postgresConfig } from './postgres-config';
 
 const connectionString =
   process.env.DATABASE_URL ??
@@ -12,7 +13,7 @@ export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     adapter: new PrismaPg({
-      connectionString,
+      ...postgresConfig(connectionString),
       max: 5,
       connectionTimeoutMillis: 5_000,
       idleTimeoutMillis: 10_000,

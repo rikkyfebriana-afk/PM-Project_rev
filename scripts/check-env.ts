@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
 import pg from 'pg';
+import { postgresConfig } from '../lib/postgres-config.ts';
 import { createClient } from '@supabase/supabase-js';
 config({ quiet: true });
 const invalid = /(replace|your[_-]|example|placeholder|demo|USER:PASSWORD)/i;
@@ -44,7 +45,7 @@ add(
 );
 if (process.argv.includes('--live') && checks.every((c) => c.ok)) {
   const pool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
+    ...postgresConfig(process.env.DATABASE_URL!),
     connectionTimeoutMillis: 5000,
     max: 1,
   });
