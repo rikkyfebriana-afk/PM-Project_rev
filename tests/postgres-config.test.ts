@@ -2,6 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { postgresConfig, prismaMigrationUrl } from '../lib/postgres-config.ts';
 
+test('missing or invalid deployment URLs do not crash client generation', () => {
+  for (const url of ['', 'not-a-url']) {
+    assert.equal(prismaMigrationUrl(url), url);
+    assert.deepEqual(postgresConfig(url), { connectionString: url });
+  }
+});
+
 test('Supabase connections enforce trusted TLS despite URL overrides', () => {
   const config = postgresConfig('postgresql://user:secret@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=disable&sslrootcert=bad&uselibpqcompat=true');
   assert.equal(config.ssl?.rejectUnauthorized, true);

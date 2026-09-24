@@ -10,7 +10,12 @@ export function isSupabaseDatabase(host: string): boolean {
 }
 
 export function postgresConfig(connectionString: string) {
-  const url = new URL(connectionString);
+  let url: URL;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    return { connectionString };
+  }
   if (!isSupabaseDatabase(url.hostname)) return { connectionString };
   // pg connection-string SSL parameters override the explicit SSL object.
   for (const key of [
@@ -32,7 +37,14 @@ export function postgresConfig(connectionString: string) {
 }
 
 export function prismaMigrationUrl(connectionString: string): string {
-  const url = new URL(connectionString);
+  // Client generation needs no database. Leave invalid configuration to the
+  // connection/deployment validation, rather than breaking package install.
+  let url: URL;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    return connectionString;
+  }
   if (!isSupabaseDatabase(url.hostname)) return connectionString;
   url.searchParams.set('sslmode', 'require');
   url.searchParams.set('sslaccept', 'strict');
