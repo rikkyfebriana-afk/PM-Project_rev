@@ -22,6 +22,7 @@ import { usePathname } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 
 import { logoutAction } from '@/app/actions/auth';
+import { CompanyLogo, companyName } from '@/components/brand/company-logo';
 
 const navigation = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -61,17 +62,15 @@ export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[232px] flex-col bg-[#102334] text-white lg:flex">
         <Link
           href="/dashboard"
-          className="flex h-[82px] items-center gap-3 border-b border-white/10 px-6"
+          className="flex min-h-[96px] shrink-0 items-center gap-3 border-b border-white/10 px-4 py-4"
         >
-          <span className="grid size-10 place-items-center bg-[#f36b3e] font-mono text-sm font-bold tracking-tight">
-            PC
-          </span>
-          <span>
+          <CompanyLogo className="size-12" />
+          <span className="min-w-0">
             <strong className="block text-[15px] font-semibold tracking-tight">
               Project Control
             </strong>
-            <small className="mt-0.5 block text-xs font-medium uppercase tracking-[0.16em] text-white/45">
-              Operations center
+            <small className="mt-1 block text-[11px] font-medium leading-4 text-white/70">
+              {companyName}
             </small>
           </span>
         </Link>
@@ -144,13 +143,14 @@ export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
         <header className="sticky top-0 z-20 flex h-[82px] items-center gap-4 border-b border-[#dfe4e8] bg-white/95 px-4 backdrop-blur md:px-7 xl:px-9">
           <Link
             href="/dashboard"
-            className="grid size-9 place-items-center bg-[#102334] font-mono text-xs font-bold text-white lg:hidden"
+            aria-label={`Dashboard ${companyName}`}
+            className="shrink-0 lg:hidden"
           >
-            PC
+            <CompanyLogo className="size-10" />
           </Link>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.17em] text-[#83909c]">
-              Project Control Center
+            <p className="text-[10px] font-semibold leading-4 text-[#647684] sm:text-xs">
+              {companyName}
             </p>
             <h1 className="mt-1 truncate text-lg font-semibold tracking-[-0.025em] text-[#132738] md:text-xl">
               {pageTitle}

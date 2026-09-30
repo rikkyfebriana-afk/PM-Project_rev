@@ -1,6 +1,7 @@
 import { CheckCircle2, Database, LockKeyhole, ShieldCheck } from 'lucide-react';
 
 import { LoginForm } from '@/components/auth/login-form';
+import { CompanyLogo, companyName } from '@/components/brand/company-logo';
 import { isLocalDemoMode } from '@/lib/auth/session';
 
 export const metadata = { title: 'Login' };
@@ -12,11 +13,12 @@ export default function LoginPage() {
       <section className="relative hidden overflow-hidden bg-[#0f2638] p-12 text-white lg:flex lg:flex-col lg:justify-between xl:p-16">
         <div className="absolute inset-0 login-grid opacity-35" />
         <div className="relative z-10 flex items-center gap-3">
-          <span className="grid size-11 place-items-center bg-[#f36b3e] font-mono text-sm font-bold">
-            PC
-          </span>
+          <CompanyLogo className="size-20" />
           <span>
             <strong className="block text-lg">Project Control</strong>
+            <span className="mt-1 block text-sm font-medium text-white/85">
+              {companyName}
+            </span>
             <small className="text-xs uppercase tracking-[0.18em] text-white/45">
               Operations center
             </small>
@@ -60,12 +62,15 @@ export default function LoginPage() {
       <section className="flex items-center justify-center p-5 sm:p-10">
         <div className="w-full max-w-[430px] border border-[#dbe2e6] bg-white p-7 shadow-[0_24px_70px_rgba(19,44,60,0.1)] sm:p-10">
           <div className="flex items-center gap-3 lg:hidden">
-            <span className="grid size-10 place-items-center bg-[#17364a] font-mono text-sm font-bold text-white">
-              PC
-            </span>
-            <strong className="text-base text-[#17364a]">
-              Project Control
-            </strong>
+            <CompanyLogo className="size-14" />
+            <div className="min-w-0">
+              <strong className="block text-base text-[#17364a]">
+                Project Control
+              </strong>
+              <span className="mt-1 block text-xs leading-5 text-[#526875]">
+                {companyName}
+              </span>
+            </div>
           </div>
           <div className="mt-8 lg:mt-0">
             <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#d85c38]">
