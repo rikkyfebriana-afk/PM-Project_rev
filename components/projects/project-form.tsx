@@ -198,7 +198,7 @@ export function ProjectForm({
                 <Input
                   id="clientName"
                   name="clientName"
-                  readOnly={!masterEditable}
+                  readOnly={!masterEditable || project?.hasCustomerPo}
                   defaultValue={project?.clientName ?? ''}
                   placeholder="PT Client Indonesia"
                   className="h-10 rounded-none read-only:bg-[#f4f6f7]"
@@ -341,6 +341,11 @@ export function ProjectForm({
               <legend className="mb-5 border-b border-[#e7ebed] pb-3 text-xs font-bold uppercase tracking-[0.14em] text-[#324c5c]">
                 Commercial
               </legend>
+              {project?.hasCustomerPo && (
+                <p className="text-xs text-slate-500">
+                  Nama customer dan nilai PO dikelola melalui menu PO Customer.
+                </p>
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 {(
                   [
@@ -367,7 +372,10 @@ export function ProjectForm({
                       min="0"
                       step="0.01"
                       required
-                      readOnly={!masterEditable}
+                      readOnly={
+                        !masterEditable ||
+                        (name === 'poValue' && project?.hasCustomerPo)
+                      }
                       defaultValue={value}
                       className="h-10 rounded-none font-mono read-only:bg-[#f4f6f7]"
                     />

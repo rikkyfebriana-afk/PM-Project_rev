@@ -118,6 +118,7 @@ function BudgetForm({
               step="0.01"
               required
               defaultValue={p[name]}
+              readOnly={name === 'poValue' && p.hasCustomerPo}
               className={inputClass}
             />
           </Field>
@@ -127,6 +128,11 @@ function BudgetForm({
       <button className={buttonClass} disabled={!enabled || pending}>
         Simpan baseline
       </button>
+      {p.hasCustomerPo && (
+        <p className="text-xs text-slate-500">
+          Nilai PO dikelola melalui menu PO Customer.
+        </p>
+      )}
     </form>
   );
 }

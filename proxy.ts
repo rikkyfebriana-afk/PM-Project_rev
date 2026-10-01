@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 const protectedRoutes = [
   '/dashboard',
   '/projects',
+  '/customer-po',
   '/boq',
   '/materials',
   '/production',
@@ -42,6 +43,7 @@ export const config = {
     '/login',
     '/dashboard/:path*',
     '/projects/:path*',
+    '/customer-po/:path*',
     '/boq/:path*',
     '/materials/:path*',
     '/production/:path*',

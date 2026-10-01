@@ -129,6 +129,7 @@ function mutationError(error: unknown): ProjectActionState {
 }
 
 function revalidateProjectViews() {
+  revalidatePath('/customer-po');
   revalidatePath('/projects');
   revalidatePath('/dashboard');
 }
@@ -227,11 +228,21 @@ export async function updateProjectAction(
           updatedAt: true,
           projectManagerId: true,
           actualCost: true,
+          customerPoNumber: true,
+          poValue: true,
+          clientName: true,
         },
       });
       if (!current) return { outcome: 'not-found' as const };
       if (current.updatedAt.toISOString() !== updatedAt)
         return { outcome: 'conflict' as const };
+      if (
+        user.role === 'ADMIN' &&
+        current.customerPoNumber &&
+        (!current.poValue.eq(parsed.data.poValue) ||
+          current.clientName !== parsed.data.clientName)
+      )
+        return { outcome: 'po-conflict' as const };
 
       const managerChanged =
         user.role === 'ADMIN' &&
@@ -311,6 +322,12 @@ export async function updateProjectAction(
       };
     });
 
+    if (result.outcome === 'po-conflict')
+      return {
+        status: 'error',
+        message:
+          'PO sudah tercatat. Ubah nilai PO atau nama customer melalui menu PO Customer.',
+      };
     if (result.outcome === 'not-found')
       return {
         status: 'error',

@@ -86,6 +86,11 @@ export async function POST(request: Request) {
 
   const { projectId, milestoneId, category, fileName, mimeType, sizeBytes } =
     parsed.data;
+  if (category === 'PURCHASE_ORDER' && user.role !== 'ADMIN')
+    return NextResponse.json(
+      { error: 'Dokumen PO Customer hanya dapat diunggah administrator.' },
+      { status: 403 },
+    );
   const project = await canUploadToProject(user, projectId);
   if (!project)
     return NextResponse.json(

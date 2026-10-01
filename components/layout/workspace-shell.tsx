@@ -27,6 +27,7 @@ import { CompanyLogo, companyName } from '@/components/brand/company-logo';
 const navigation = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Projects', href: '/projects', icon: BriefcaseBusiness },
+  { label: 'PO Customer', href: '/customer-po', icon: FileSpreadsheet },
   { label: 'BoQ', href: '/boq', icon: FileSpreadsheet },
   { label: 'Materials', href: '/materials', icon: Boxes },
   { label: 'Production', href: '/production', icon: Factory },

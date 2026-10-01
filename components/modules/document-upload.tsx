@@ -9,7 +9,7 @@ export function DocumentUpload({
   category,
 }: {
   projectId: string;
-  milestoneId: string;
+  milestoneId?: string;
   category: string;
 }) {
   const router = useRouter();

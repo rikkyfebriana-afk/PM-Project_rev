@@ -112,6 +112,7 @@ try {
   });
   const anonymous = await request('/api/reports?type=portfolio&format=xlsx');
   assert.equal(anonymous.status, 401);
+  assert.equal((await request('/customer-po')).status, 307);
   const home = await login('smoke-admin');
   assert.ok(home.includes('QA-001') && home.includes('QA-002'));
   console.log('PASS login and administrator portfolio scope');
@@ -249,8 +250,86 @@ try {
     assert.ok((await response.arrayBuffer()).byteLength > 1000);
   }
   console.log('PASS authenticated PDF and Excel downloads');
+  const poValues = {
+    projectId: 'smoke-p1',
+    customerPoNumber: 'QA-PO/001',
+    clientName: 'Synthetic customer',
+    customerPoDate: '2026-09-30',
+    customerPoDelivery: '2026-10-15',
+    customerPoDescription: 'Test panel delivery',
+    poValue: '1200000.50',
+    customerPoTax: '132000.05',
+    customerPoStatus: 'RECEIVED',
+    customerPoNotes: 'Isolated fixture only',
+  };
+  const poForm = await form(
+    '/customer-po',
+    'customerPoNumber',
+    (f) => f.get('projectId') === 'smoke-p1',
+  );
+  assert.ok(
+    (await post('/customer-po', poForm, poValues)).text.includes(
+      'PO Customer tersimpan',
+    ),
+  );
+  assert.ok(
+    (
+      await post('/customer-po', poForm, { ...poValues, poValue: '10' })
+    ).text.includes('Data proyek sudah berubah'),
+  );
+  const updatedPo = await form(
+    '/customer-po',
+    'customerPoNumber',
+    (f) => f.get('projectId') === 'smoke-p1',
+  );
+  assert.ok(
+    (
+      await post('/customer-po', updatedPo, {
+        ...poValues,
+        poValue: '1300000.50',
+        customerPoStatus: 'IN_PROGRESS',
+      })
+    ).text.includes('PO Customer tersimpan'),
+  );
+  const poReport = await request(
+    '/api/reports?type=portfolio&format=xlsx&projectId=smoke-p1',
+  );
+  const poBook = new ExcelJS.Workbook();
+  await poBook.xlsx.load(Buffer.from(await poReport.arrayBuffer()) as never);
+  assert.equal(
+    poBook.worksheets[0].getCell('E5').value,
+    1300000.5,
+    'PO must replace value, not accumulate or include PPN',
+  );
+  const poPage = await (await request('/customer-po')).text();
+  assert.ok(poPage.includes('PO dicatat') && poPage.includes('PO diperbarui'));
+  const tamperedBudget = await form(
+    '/finance',
+    'budgetValue',
+    (f) => f.get('projectId') === 'smoke-p1',
+  );
+  assert.ok(
+    (
+      await post('/finance', tamperedBudget, {
+        projectId: 'smoke-p1',
+        poValue: '1',
+        budgetValue: '800000',
+        forecastCost: '750000',
+      })
+    ).text.includes('Ubah nilai PO melalui menu PO Customer'),
+  );
+  console.log(
+    'PASS PO create/update, stale write rejection, exact revenue, audit history and Finance guard',
+  );
   const adminBudget = await form('/finance', 'budgetValue');
   const viewerHome = await login('smoke-viewer');
+  const viewerPo = await (await request('/customer-po')).text();
+  assert.ok(viewerPo.includes('QA-001') && !viewerPo.includes('QA-002'));
+  assert.ok(
+    (await post('/customer-po', updatedPo, poValues)).text.includes(
+      'Hanya administrator',
+    ),
+  );
   assert.ok(viewerHome.includes('QA-001'));
   assert.ok(!viewerHome.includes('QA-002'));
   assert.equal(
@@ -267,6 +346,27 @@ try {
     'PASS viewer project isolation, export denial and mutation denial',
   );
   await login('smoke-pm');
+  assert.ok(
+    (await post('/customer-po', updatedPo, poValues)).text.includes(
+      'Hanya administrator',
+    ),
+  );
+  assert.equal(
+    (
+      await request('/api/documents/upload', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          projectId: 'smoke-p1',
+          category: 'PURCHASE_ORDER',
+          fileName: 'po.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 100,
+        }),
+      })
+    ).status,
+    403,
+  );
   const pmBudget = await post('/finance', adminBudget, {
     projectId: 'smoke-p1',
     poValue: '100',

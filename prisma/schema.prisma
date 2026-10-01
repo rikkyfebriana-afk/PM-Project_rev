@@ -146,6 +146,13 @@ model Project {
   phase            ProjectPhase    @default(PLANNING)
   progressPct      Decimal         @default(0) @db.Decimal(5, 2)
   poValue          Decimal         @default(0) @db.Decimal(18, 2)
+  customerPoNumber String?
+  customerPoDate   DateTime?       @db.Date
+  customerPoDescription String?
+  customerPoTax    Decimal         @default(0) @db.Decimal(18, 2)
+  customerPoDelivery DateTime?     @db.Date
+  customerPoStatus String         @default("DRAFT")
+  customerPoNotes  String?
   budgetValue      Decimal         @default(0) @db.Decimal(18, 2)
   actualCost       Decimal         @default(0) @db.Decimal(18, 2)
   forecastCost     Decimal         @default(0) @db.Decimal(18, 2)

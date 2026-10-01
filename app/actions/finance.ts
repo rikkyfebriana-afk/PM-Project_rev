@@ -9,6 +9,7 @@ import type { MutationState } from '@/lib/operations/validation';
 import { costSchema, budgetSchema } from '@/lib/finance/validation';
 
 function refresh() {
+  revalidatePath('/customer-po');
   for (const p of ['/finance', 'dashboard', '/projects', '/reports'])
     revalidatePath(p.startsWith('/') ? p : `/${p}`);
 }
@@ -175,6 +176,10 @@ export async function saveBudget(
       if (p.updatedAt.toISOString() !== parsed.data.updatedAt)
         throw new Error('Project sudah berubah. Muat ulang halaman.');
       const { poValue, budgetValue, forecastCost } = parsed.data;
+      if (p.customerPoNumber && !p.poValue.eq(poValue))
+        throw new Error(
+          'Ubah nilai PO melalui menu PO Customer agar riwayat tetap tercatat.',
+        );
       await tx.project.update({
         where: { id: p.id },
         data: { poValue, budgetValue, forecastCost },

@@ -43,6 +43,7 @@ export type ProjectRecord = {
   phase: ProjectPhaseValue;
   progressPct: number;
   poValue: string;
+  hasCustomerPo?: boolean;
   budgetValue: string;
   actualCost: string;
   forecastCost: string;

@@ -24,6 +24,34 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
       `SELECT "costOpeningBalance"::text AS value FROM "Project" WHERE "id"='legacy'`,
     );
     assert.equal(opening.rows[0].value, '100.00');
+    const legacyPo = await db.query<{
+      number: null;
+      tax: string;
+      status: string;
+    }>(
+      `SELECT "customerPoNumber" AS number, "customerPoTax"::text AS tax, "customerPoStatus" AS status FROM "Project" WHERE "id"='legacy'`,
+    );
+    assert.deepEqual(legacyPo.rows[0], {
+      number: null,
+      tax: '0.00',
+      status: 'DRAFT',
+    });
+    await assert.rejects(
+      db.exec(`UPDATE "Project" SET "customerPoTax"=-1 WHERE "id"='legacy'`),
+      /check constraint/,
+    );
+    await assert.rejects(
+      db.exec(
+        `UPDATE "Project" SET "customerPoStatus"='INVALID' WHERE "id"='legacy'`,
+      ),
+      /check constraint/,
+    );
+    await assert.rejects(
+      db.exec(
+        `UPDATE "Project" SET "customerPoDate"='2026-09-30',"customerPoDelivery"='2026-09-01' WHERE "id"='legacy'`,
+      ),
+      /check constraint/,
+    );
     await db.exec(`INSERT INTO "Project" ("id","code","name","updatedAt") VALUES ('p2','P2','Second',now());
     INSERT INTO "Boq" ("id","projectId","version","updatedAt") VALUES ('b1','legacy',1,now());
     INSERT INTO "BoqItem" ("id","boqId","itemNo","description","unit","quantity","unitPrice","lineTotal") VALUES ('i1','b1','1','Cable','M',10,100,1000);
