@@ -28,6 +28,7 @@ const navigation = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Projects', href: '/projects', icon: BriefcaseBusiness },
   { label: 'PO Customer', href: '/customer-po', icon: FileSpreadsheet },
+  { label: 'Time Plan', href: '/time-plan', icon: ClipboardCheck },
   { label: 'BoQ', href: '/boq', icon: FileSpreadsheet },
   { label: 'Materials', href: '/materials', icon: Boxes },
   { label: 'Production', href: '/production', icon: Factory },

@@ -6,7 +6,7 @@ DECLARE table_name text;
 BEGIN
   FOREACH table_name IN ARRAY ARRAY[
     'User', 'Session', 'Project', 'ProjectMember', 'Boq', 'BoqItem',
-    'Material', 'Milestone', 'ActionItem', 'Document', 'AuditLog', 'CostEntry'
+    'Material', 'Milestone', 'ActionItem', 'Document', 'AuditLog', 'CostEntry', 'PlanTask'
   ] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', table_name);
     EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC, anon, authenticated', table_name);

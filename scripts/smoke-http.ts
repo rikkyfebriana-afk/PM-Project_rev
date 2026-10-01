@@ -18,6 +18,7 @@ server.stderr.on('data', (chunk) => {
 });
 const cookies = new Map<string, string>();
 async function request(path: string, init: RequestInit = {}) {
+  if (path === '/time-plan') path += '?projectId=smoke-p1';
   const response = await fetch(base + path, {
     ...init,
     redirect: 'manual',
@@ -113,6 +114,7 @@ try {
   const anonymous = await request('/api/reports?type=portfolio&format=xlsx');
   assert.equal(anonymous.status, 401);
   assert.equal((await request('/customer-po')).status, 307);
+  assert.equal((await request('/time-plan')).status, 307);
   const home = await login('smoke-admin');
   assert.ok(home.includes('QA-001') && home.includes('QA-002'));
   console.log('PASS login and administrator portfolio scope');
@@ -321,8 +323,155 @@ try {
   console.log(
     'PASS PO create/update, stale write rejection, exact revenue, audit history and Finance guard',
   );
+  const taskValues = {
+    projectId: 'smoke-p1',
+    id: '',
+    phase: 'ENGINEERING',
+    title: 'Engineering drawings',
+    responsible: 'QA engineer',
+    sortOrder: '1',
+    weight: '20',
+    progressPct: '50',
+    plannedStart: '2026-09-01',
+    plannedFinish: '2026-09-02',
+    actualStart: '2026-09-01',
+    actualFinish: '',
+    predecessorId: '',
+    notes: 'Isolated time plan fixture',
+  };
+  const taskNew = await form('/time-plan', 'weight', (f) => !f.get('id'));
+  assert.equal(
+    taskNew.get('projectId'),
+    'smoke-p1',
+    'Time Plan must select the requested fixture project',
+  );
+  const taskCreated = await post('/time-plan', taskNew, taskValues);
+  assert.ok(
+    taskCreated.text.includes('Pekerjaan tersimpan'),
+    `Task save failed: ${taskCreated.text.match(/role="status"[^>]*>[\s\S]*?<\/[^>]+>/g)?.join(' ') || taskCreated.text.slice(-3000)}`,
+  );
+  let activatePlan = await form('/time-plan', 'active');
+  assert.ok(
+    (await post('/time-plan', activatePlan, { active: 'true' })).text.includes(
+      'Total bobot harus tepat 100%',
+    ),
+  );
+  const taskEdit = await form('/time-plan', 'weight', (f) => !!f.get('id'));
+  const firstTaskId = String(taskEdit.get('id'));
+  const taskTwo = {
+    ...taskValues,
+    id: '',
+    phase: 'PRODUCTION',
+    title: 'Assembly panel',
+    sortOrder: '2',
+    weight: '80',
+    progressPct: '0',
+    plannedStart: '2026-09-03',
+    plannedFinish: '2026-09-05',
+    actualStart: '',
+    predecessorId: firstTaskId,
+  };
+  assert.ok(
+    (
+      await post(
+        '/time-plan',
+        await form('/time-plan', 'weight', (f) => !f.get('id')),
+        taskTwo,
+      )
+    ).text.includes('Pekerjaan tersimpan'),
+  );
+  activatePlan = await form('/time-plan', 'active');
+  assert.ok(
+    (await post('/time-plan', activatePlan, { active: 'true' })).text.includes(
+      'Time Plan aktif',
+    ),
+  );
+  async function reportProgress() {
+    const response = await request(
+      '/api/reports?type=portfolio&format=xlsx&projectId=smoke-p1',
+    );
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(Buffer.from(await response.arrayBuffer()) as never);
+    return wb.worksheets[0].getCell('D5').value;
+  }
+  assert.equal(await reportProgress(), 10);
+  assert.ok(
+    (
+      await post('/time-plan', taskEdit, { ...taskValues, id: firstTaskId })
+    ).text.includes('sudah berubah'),
+  );
+  const currentFirst = await form(
+    '/time-plan',
+    'weight',
+    (f) => f.get('id') === firstTaskId,
+  );
+  assert.ok(
+    (
+      await post('/time-plan', currentFirst, {
+        ...taskValues,
+        id: firstTaskId,
+        weight: '10',
+      })
+    ).text.includes('Bobot rencana aktif harus tetap 100%'),
+  );
+  assert.ok(
+    (
+      await post('/time-plan', currentFirst, {
+        ...taskValues,
+        id: firstTaskId,
+        progressPct: '100',
+        actualFinish: '2026-09-02',
+      })
+    ).text.includes('Pekerjaan tersimpan'),
+  );
+  const secondEdit = await form(
+    '/time-plan',
+    'weight',
+    (f) => !!f.get('id') && f.get('id') !== firstTaskId,
+  );
+  const secondTaskId = String(secondEdit.get('id'));
+  const secondUpdate = {
+    ...taskTwo,
+    id: secondTaskId,
+    progressPct: '50',
+    actualStart: '2026-09-03',
+  };
+  assert.ok(
+    (await post('/time-plan', secondEdit, secondUpdate)).text.includes(
+      'Pekerjaan tersimpan',
+    ),
+  );
+  assert.equal(await reportProgress(), 60);
+  // Locate archive via its submit label rather than hidden identity alone.
+  const planHtml = await (await request('/time-plan')).text();
+  const archiveBody = forms(planHtml).find(
+    (f) =>
+      f.html.includes('Konfirmasi arsip') && f.body.get('id') === firstTaskId,
+  )?.body;
+  assert.ok(archiveBody);
+  assert.ok(
+    (await post('/time-plan', archiveBody, {})).text.includes(
+      'Nonaktifkan acuan progres',
+    ),
+  );
+  const planActivation = await form('/time-plan', 'active');
+  const planReplay = await form(
+    '/time-plan',
+    'weight',
+    (f) => f.get('id') === secondTaskId,
+  );
+  console.log(
+    'PASS weighted Time Plan create, exact activation, stale writes, predecessor completion and 60% project rollup',
+  );
   const adminBudget = await form('/finance', 'budgetValue');
   const viewerHome = await login('smoke-viewer');
+  assert.ok(
+    (await post('/time-plan', planReplay, secondUpdate)).text.includes(
+      'Akses ubah Time Plan ditolak',
+    ),
+  );
+  const viewerPlan = await (await request('/time-plan')).text();
+  assert.ok(viewerPlan.includes('QA-001') && !viewerPlan.includes('QA-002'));
   const viewerPo = await (await request('/customer-po')).text();
   assert.ok(viewerPo.includes('QA-001') && !viewerPo.includes('QA-002'));
   assert.ok(
@@ -346,6 +495,30 @@ try {
     'PASS viewer project isolation, export denial and mutation denial',
   );
   await login('smoke-pm');
+  assert.ok(
+    (
+      await post('/time-plan', planActivation, { active: 'false' })
+    ).text.includes('Hanya administrator'),
+  );
+  const pmPlan = await form(
+    '/time-plan',
+    'weight',
+    (f) => f.get('id') === secondTaskId,
+  );
+  assert.ok(
+    (
+      await post('/time-plan', pmPlan, {
+        ...secondUpdate,
+        projectId: 'smoke-p2',
+      })
+    ).text.includes('akses edit ditolak'),
+  );
+  assert.ok(
+    (
+      await post('/time-plan', pmPlan, { ...secondUpdate, progressPct: '75' })
+    ).text.includes('Pekerjaan tersimpan'),
+  );
+  assert.equal(await reportProgress(), 80);
   assert.ok(
     (await post('/customer-po', updatedPo, poValues)).text.includes(
       'Hanya administrator',
@@ -377,7 +550,7 @@ try {
   console.log('PASS project manager cannot alter commercial baseline');
   console.log('All HTTP acceptance checks passed.');
 } catch (error) {
-  console.error(error instanceof Error ? error.message : error);
+  console.error(error instanceof Error ? error.stack : error);
   console.error(output.slice(-3000));
   process.exitCode = 1;
 } finally {

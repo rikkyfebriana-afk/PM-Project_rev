@@ -89,6 +89,27 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
     );
     await db.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
     await db.exec(
+      `INSERT INTO "PlanTask" ("id","projectId","phase","title","responsible","weight","plannedStart","plannedFinish","updatedAt") VALUES ('t1','legacy','ENGINEERING','Drawing','QA',20,'2026-09-01','2026-09-02',now()),('t2','p2','ENGINEERING','Foreign','QA',20,'2026-09-03','2026-09-04',now())`,
+    );
+    await assert.rejects(
+      db.exec(`UPDATE "PlanTask" SET "predecessorId"='t1' WHERE "id"='t2'`),
+      /foreign key constraint/,
+    );
+    await assert.rejects(
+      db.exec(`UPDATE "PlanTask" SET "weight"=101 WHERE "id"='t1'`),
+      /check constraint/,
+    );
+    await assert.rejects(
+      db.exec(`UPDATE "PlanTask" SET "progressPct"=100 WHERE "id"='t1'`),
+      /check constraint/,
+    );
+    await assert.rejects(
+      db.exec(
+        `UPDATE "PlanTask" SET "plannedFinish"='2026-08-01' WHERE "id"='t1'`,
+      ),
+      /check constraint/,
+    );
+    await db.exec(
       await readFile(
         new URL('../scripts/supabase-security.sql', import.meta.url),
         'utf8',
@@ -100,9 +121,13 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
     }>(
       `SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname='public'`,
     );
-    assert.equal(security.rows.length, 12);
+    assert.equal(security.rows.length, 13);
     assert.ok(security.rows.every((row) => row.rowsecurity));
     await db.exec('SET ROLE anon');
+    await assert.rejects(
+      db.query('SELECT * FROM public."PlanTask"'),
+      /permission denied/,
+    );
     await assert.rejects(
       db.query('SELECT * FROM public."User"'),
       /permission denied/,

@@ -290,6 +290,7 @@ export function ProjectForm({
               >
                 <Input
                   id="progressPct"
+                  readOnly={project?.timePlanActive}
                   name="progressPct"
                   type="number"
                   min="0"

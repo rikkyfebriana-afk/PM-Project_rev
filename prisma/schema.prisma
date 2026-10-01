@@ -145,6 +145,7 @@ model Project {
   health           ProjectHealth   @default(ON_TRACK)
   phase            ProjectPhase    @default(PLANNING)
   progressPct      Decimal         @default(0) @db.Decimal(5, 2)
+  timePlanActive   Boolean         @default(false)
   poValue          Decimal         @default(0) @db.Decimal(18, 2)
   customerPoNumber String?
   customerPoDate   DateTime?       @db.Date
@@ -176,10 +177,38 @@ model Project {
   documents        Document[]
   auditLogs        AuditLog[]
   costEntries      CostEntry[]
+  planTasks        PlanTask[]
 
   @@index([status, health])
   @@index([projectManagerId])
   @@index([plannedFinish])
+}
+
+model PlanTask {
+  id String @id @default(cuid())
+  projectId String
+  phase ProjectPhase
+  title String
+  responsible String
+  sortOrder Int @default(0)
+  weight Decimal @db.Decimal(5, 2)
+  progressPct Decimal @default(0) @db.Decimal(5, 2)
+  plannedStart DateTime @db.Date
+  plannedFinish DateTime @db.Date
+  actualStart DateTime? @db.Date
+  actualFinish DateTime? @db.Date
+  predecessorId String?
+  notes String?
+  archivedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  predecessor PlanTask? @relation("PlanDependency", fields: [predecessorId, projectId], references: [id, projectId], onDelete: NoAction, onUpdate: NoAction)
+  successors PlanTask[] @relation("PlanDependency")
+
+  @@unique([id, projectId])
+  @@index([projectId, archivedAt, sortOrder])
+  @@index([predecessorId, projectId])
 }
 
 model ProjectMember {

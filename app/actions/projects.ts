@@ -129,6 +129,7 @@ function mutationError(error: unknown): ProjectActionState {
 }
 
 function revalidateProjectViews() {
+  revalidatePath('/time-plan');
   revalidatePath('/customer-po');
   revalidatePath('/projects');
   revalidatePath('/dashboard');
@@ -228,6 +229,8 @@ export async function updateProjectAction(
           updatedAt: true,
           projectManagerId: true,
           actualCost: true,
+          timePlanActive: true,
+          progressPct: true,
           customerPoNumber: true,
           poValue: true,
           clientName: true,
@@ -236,6 +239,11 @@ export async function updateProjectAction(
       if (!current) return { outcome: 'not-found' as const };
       if (current.updatedAt.toISOString() !== updatedAt)
         return { outcome: 'conflict' as const };
+      if (
+        current.timePlanActive &&
+        !current.progressPct.eq(parsed.data.progressPct)
+      )
+        return { outcome: 'plan-conflict' as const };
       if (
         user.role === 'ADMIN' &&
         current.customerPoNumber &&
@@ -322,6 +330,12 @@ export async function updateProjectAction(
       };
     });
 
+    if (result.outcome === 'plan-conflict')
+      return {
+        status: 'error',
+        message:
+          'Progres proyek dikelola melalui Time Plan aktif. Perbarui progres rincian pekerjaan.',
+      };
     if (result.outcome === 'po-conflict')
       return {
         status: 'error',

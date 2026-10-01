@@ -42,6 +42,7 @@ export type ProjectRecord = {
   health: ProjectHealthValue;
   phase: ProjectPhaseValue;
   progressPct: number;
+  timePlanActive?: boolean;
   poValue: string;
   hasCustomerPo?: boolean;
   budgetValue: string;
