@@ -304,6 +304,9 @@ try {
     'PO must replace value, not accumulate or include PPN',
   );
   const poPage = await (await request('/customer-po')).text();
+  const financePoPage = await (await request('/finance')).text();
+  assert.ok(financePoPage.includes('Nilai berdasarkan status PO Customer'));
+  assert.ok(financePoPage.includes('Rp 1.300.000,50') && financePoPage.includes('In Progress') && financePoPage.includes('QA-PO/001'));
   assert.ok(poPage.includes('PO dicatat') && poPage.includes('PO diperbarui'));
   const tamperedBudget = await form(
     '/finance',
@@ -488,6 +491,8 @@ try {
   );
   assert.ok(viewerPlan.includes('QA-001') && !viewerPlan.includes('QA-002'));
   const viewerPo = await (await request('/customer-po')).text();
+  const viewerFinance = await (await request('/finance')).text();
+  assert.ok(viewerFinance.includes('QA-001') && !viewerFinance.includes('QA-002'));
   assert.ok(viewerPo.includes('QA-001') && !viewerPo.includes('QA-002'));
   assert.ok(
     (await post('/customer-po', updatedPo, poValues)).text.includes(

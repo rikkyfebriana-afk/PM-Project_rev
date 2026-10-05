@@ -95,6 +95,7 @@ export async function getProjectRegisterData(
     poValue: project.poValue.toString(),
     hasCustomerPo: Boolean(project.customerPoNumber),
     customerPoNumber: project.customerPoNumber,
+    customerPoStatus: project.customerPoStatus,
     budgetValue: project.budgetValue.toString(),
     actualCost: project.actualCost.toString(),
     forecastCost: project.forecastCost.toString(),
