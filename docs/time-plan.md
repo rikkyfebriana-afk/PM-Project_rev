@@ -4,6 +4,10 @@ Satu proyek memiliki pekerjaan rinci yang dikelompokkan menurut tahapan Planning
 
 ## Cara menggunakan
 
+Tampilan awal **Semua proyek** berupa tabel dan Gantt menyatu dengan kelompok proyek/PO Customer. Filter proyek atau klik judul kelompok untuk membuka pengelolaan pekerjaan. Header menampilkan customer, PO, tanggal mulai proyek, dan Project Lead dari data tersimpan. Tidak ada data contoh yang dimasukkan ke produksi.
+
+Kalender dapat digeser dengan tombol minggu sebelumnya/berikutnya, Hari ini, Awal pekerjaan, atau tanggal mulai. Display Weeks membatasi rentang 1–26 minggu; kelompok header dapat dipilih minggu/bulan (tanggal harian tetap terlihat). Minggu dimulai Senin, tidak memakai nomor minggu relatif proyek. Durasi termasuk hari mulai dan selesai, memakai hari kalender. Rencana berwarna kuning, progres biru; garis merah menandai hari ini. Pekerjaan di luar rentang tetap ada dalam tabel tetapi batangnya tidak terlihat. Bobot tidak dijumlahkan antarproyek. Layar penuh tersedia dan kolom PO tetap terlihat saat digeser, dengan kolom pekerjaan tambahan tetap terlihat di desktop.
+
 1. Pilih proyek di Time Plan, lalu Tambah rincian pekerjaan.
 2. Isi nama, tahapan, PIC, bobot terhadap seluruh proyek, jadwal rencana, progres, tanggal aktual, dan catatan.
 3. Pilih satu pendahulu bila diperlukan (finish-to-start tanpa lag; boleh mulai pada hari pendahulu selesai). Kosong berarti pekerjaan dapat berjalan paralel. Siklus dan pendahulu lintas proyek ditolak.

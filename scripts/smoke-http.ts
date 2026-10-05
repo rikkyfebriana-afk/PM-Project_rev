@@ -444,6 +444,17 @@ try {
   assert.equal(await reportProgress(), 60);
   // Locate archive via its submit label rather than hidden identity alone.
   const planHtml = await (await request('/time-plan')).text();
+  assert.ok(
+    planHtml.includes('Display Weeks') &&
+      planHtml.includes('QA-PO/001') &&
+      planHtml.includes('Lembar Time Plan'),
+  );
+  const allPlanHtml = await (await request('/time-plan?view=all')).text();
+  assert.ok(
+    allPlanHtml.includes('Semua proyek') &&
+      allPlanHtml.includes('QA-001') &&
+      allPlanHtml.includes('QA-002'),
+  );
   const archiveBody = forms(planHtml).find(
     (f) =>
       f.html.includes('Konfirmasi arsip') && f.body.get('id') === firstTaskId,
@@ -471,6 +482,10 @@ try {
     ),
   );
   const viewerPlan = await (await request('/time-plan')).text();
+  const viewerAllPlan = await (await request('/time-plan?view=all')).text();
+  assert.ok(
+    viewerAllPlan.includes('QA-001') && !viewerAllPlan.includes('QA-002'),
+  );
   assert.ok(viewerPlan.includes('QA-001') && !viewerPlan.includes('QA-002'));
   const viewerPo = await (await request('/customer-po')).text();
   assert.ok(viewerPo.includes('QA-001') && !viewerPo.includes('QA-002'));

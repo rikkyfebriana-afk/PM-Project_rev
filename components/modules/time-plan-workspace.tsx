@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { TimePlanSheet } from './time-plan-sheet';
 import { useActionState, useState } from 'react';
 import {
   savePlanTask,
@@ -233,81 +234,6 @@ function Activation({ p }: { p: Project }) {
     </form>
   );
 }
-function Gantt({ tasks, today }: { tasks: Task[]; today: string }) {
-  if (!tasks.length) return null;
-  const day = (s: string) => new Date(`${s}T00:00:00Z`).getTime() / 86400000;
-  const start = Math.min(...tasks.map((t) => day(t.plannedStart)));
-  const finish = Math.max(...tasks.map((t) => day(t.plannedFinish)));
-  const span = finish - start + 1;
-  const tick = (n: number) =>
-    new Date((start + n) * 86400000).toISOString().slice(0, 10);
-  return (
-    <section className={panelClass}>
-      <h3 className="text-lg font-semibold">Gantt — rencana pekerjaan</h3>
-      <p className="mt-2 text-xs text-slate-500">
-        Abu-abu: durasi rencana · warna: progres pekerjaan (bukan tanggal
-        aktual) · merah: terlambat · garis: hari ini.
-      </p>
-      <div className="mt-5 overflow-x-auto">
-        <div className="min-w-[760px]">
-          <div className="mb-3 grid grid-cols-[240px_1fr] text-xs text-slate-500">
-            <span>Pekerjaan / bobot</span>
-            <div className="flex justify-between">
-              <span>{tick(0)}</span>
-              <span>{tick(Math.floor((span - 1) / 2))}</span>
-              <span>{tick(span - 1)}</span>
-            </div>
-          </div>
-          {planPhases.map((phase) => {
-            const group = tasks.filter((t) => t.phase === phase);
-            return group.length ? (
-              <div key={phase}>
-                <p className="mb-2 mt-4 text-xs font-bold uppercase tracking-wide text-slate-600">
-                  {phaseLabels[phase]}
-                </p>
-                {group.map((t) => (
-                  <div
-                    key={t.id}
-                    className="grid grid-cols-[240px_1fr] items-center border-t border-slate-100 py-3 text-xs"
-                  >
-                    <span className="pr-3" title={t.title}>
-                      {t.title}{' '}
-                      <span className="text-slate-500">({t.weight}%)</span>
-                    </span>
-                    <div className="relative h-6 bg-slate-50">
-                      {day(today) >= start && day(today) <= finish && (
-                        <div
-                          className="absolute inset-y-0 z-10 border-l border-orange-500"
-                          style={{
-                            left: `${((day(today) - start) / span) * 100}%`,
-                          }}
-                        />
-                      )}
-                      <div
-                        title={`${t.plannedStart} → ${t.plannedFinish} · ${t.progressPct}%`}
-                        className="absolute h-6 overflow-hidden rounded bg-slate-200"
-                        style={{
-                          left: `${((day(t.plannedStart) - start) / span) * 100}%`,
-                          width: `${((day(t.plannedFinish) - day(t.plannedStart) + 1) / span) * 100}%`,
-                          minWidth: 3,
-                        }}
-                      >
-                        <div
-                          className={`h-full ${taskStatus(t, today) === 'Terlambat' ? 'bg-red-500' : 'bg-teal-600'}`}
-                          style={{ width: `${t.progressPct}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : null;
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
 export function TimePlanWorkspace({
   data,
   initialProjectId,
@@ -315,10 +241,8 @@ export function TimePlanWorkspace({
   data: TimePlanData;
   initialProjectId?: string;
 }) {
-  const [selected, setSelected] = useState(
-    initialProjectId ?? data.projects[0]?.id ?? '',
-  );
-  const p = data.projects.find((p) => p.id === selected) ?? data.projects[0];
+  const [selected, setSelected] = useState(initialProjectId ?? '');
+  const p = data.projects.find((p) => p.id === selected);
   return (
     <main className="mx-auto max-w-[1600px] space-y-5 p-4 pb-24 md:p-7">
       <WorkspaceIntro
@@ -326,10 +250,36 @@ export function TimePlanWorkspace({
         description="Rencana proyek per tahapan dan rincian pekerjaan. Atur bobot, jadwal, PIC, pekerjaan pendahulu, dan pantau progres tertimbang."
         demo={data.demoMode}
       />
+      {data.projects.length > 0 && (
+        <>
+          <Field label="Pilih proyek">
+            <select
+              aria-label="Pilih proyek"
+              value={p?.id ?? ''}
+              onChange={(e) => setSelected(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Semua proyek</option>
+              {data.projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.code} — {project.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <TimePlanSheet
+            projects={p ? [p] : data.projects}
+            today={data.today}
+            onSelect={setSelected}
+          />
+        </>
+      )}
       {!p ? (
         <section className={panelClass}>
           <p className="mb-4">
-            Buat proyek terlebih dahulu untuk menyusun Time Plan.
+            {data.projects.length
+              ? 'Pilih satu proyek untuk menambah atau mengedit pekerjaan dan mengaktifkan bobot. Tampilan semua proyek hanya merangkum proyek yang boleh Anda akses.'
+              : 'Buat proyek terlebih dahulu untuk menyusun Time Plan.'}
           </p>
           <Link href="/projects" className={buttonClass}>
             Buka Projects
@@ -337,19 +287,6 @@ export function TimePlanWorkspace({
         </section>
       ) : (
         <>
-          <Field label="Pilih proyek">
-            <select
-              value={p.id}
-              onChange={(e) => setSelected(e.target.value)}
-              className={inputClass}
-            >
-              {data.projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.code} — {p.name}
-                </option>
-              ))}
-            </select>
-          </Field>
           <Metrics
             items={[
               {
@@ -413,7 +350,6 @@ export function TimePlanWorkspace({
               </div>
             ))}
           </div>
-          <Gantt tasks={p.tasks} today={data.today} />
           {p.canEdit && (
             <details className={panelClass} key={`new-${p.id}-${p.updatedAt}`}>
               <summary className="cursor-pointer font-semibold">

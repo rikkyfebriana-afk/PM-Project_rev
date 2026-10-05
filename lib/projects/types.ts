@@ -45,6 +45,7 @@ export type ProjectRecord = {
   timePlanActive?: boolean;
   poValue: string;
   hasCustomerPo?: boolean;
+  customerPoNumber?: string | null;
   budgetValue: string;
   actualCost: string;
   forecastCost: string;
