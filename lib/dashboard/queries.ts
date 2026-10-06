@@ -8,7 +8,7 @@ import { isLocalDemoMode } from '@/lib/auth/session';
 import { dateOnlyInTimeZone } from '@/lib/business-date';
 import { prisma } from '@/lib/prisma';
 import { accessibleProjectWhere } from '@/lib/projects/access';
-import { formatRupiahShort } from '@/lib/projects/presentation';
+import { exactPoMoney } from '@/lib/finance/po-summary';
 import { buildMonthlyPo } from './po-monthly';
 
 const phaseShort: Record<string, string> = {
@@ -198,26 +198,26 @@ export async function getDashboardData(
     finance: [
       {
         label: 'PO Value',
-        value: formatRupiahShort(poValue.toString()),
+        value: exactPoMoney(poValue.toFixed(2)),
         change: 'Active portfolio',
         direction: 'flat',
       },
       {
         label: 'Budget',
-        value: formatRupiahShort(budget.toString()),
+        value: exactPoMoney(budget.toFixed(2)),
         change: `${percentage(budget, poValue).toFixed(1)}% of PO`,
         direction: 'flat',
       },
       {
         label: 'Actual',
-        value: formatRupiahShort(actual.toString()),
+        value: exactPoMoney(actual.toFixed(2)),
         change: `${percentage(actual, budget).toFixed(1)}% used`,
         direction: 'flat',
       },
       {
         label: 'Forecast',
-        value: formatRupiahShort(forecast.toString()),
-        change: `${formatRupiahShort(budget.minus(forecast).abs().toString())} ${forecast.lessThanOrEqualTo(budget) ? 'under' : 'over'}`,
+        value: exactPoMoney(forecast.toFixed(2)),
+        change: `${exactPoMoney(budget.minus(forecast).abs().toFixed(2))} ${forecast.lessThanOrEqualTo(budget) ? 'under' : 'over'}`,
         direction: forecast.lessThanOrEqualTo(budget) ? 'up' : 'down',
       },
       {

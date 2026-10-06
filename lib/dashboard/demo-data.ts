@@ -1,5 +1,6 @@
 import type { DashboardData, DashboardHealth } from '@/lib/dashboard/types';
-import { formatRupiahShort, grossMargin } from '@/lib/projects/presentation';
+import { grossMargin } from '@/lib/projects/presentation';
+import { exactPoMoney } from '@/lib/finance/po-summary';
 import { demoProjects } from '@/lib/projects/demo-data';
 
 const materialReadiness: Record<string, number> = {
@@ -98,26 +99,26 @@ export const demoDashboardData: DashboardData = {
   finance: [
     {
       label: 'PO Value',
-      value: formatRupiahShort(poValue),
+      value: exactPoMoney(poValue.toFixed(2)),
       change: 'Active portfolio',
       direction: 'flat',
     },
     {
       label: 'Budget',
-      value: formatRupiahShort(budget),
+      value: exactPoMoney(budget.toFixed(2)),
       change: `${((budget / poValue) * 100).toFixed(1)}% of PO`,
       direction: 'flat',
     },
     {
       label: 'Actual',
-      value: formatRupiahShort(actual),
+      value: exactPoMoney(actual.toFixed(2)),
       change: `${((actual / budget) * 100).toFixed(1)}% used`,
       direction: 'flat',
     },
     {
       label: 'Forecast',
-      value: formatRupiahShort(forecast),
-      change: `${formatRupiahShort(Math.abs(budget - forecast))} ${forecast <= budget ? 'under' : 'over'}`,
+      value: exactPoMoney(forecast.toFixed(2)),
+      change: `${exactPoMoney(Math.abs(budget - forecast).toFixed(2))} ${forecast <= budget ? 'under' : 'over'}`,
       direction: forecast <= budget ? 'up' : 'down',
     },
     {

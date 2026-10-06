@@ -226,14 +226,20 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             Financial position
           </h2>
         </div>
-        <div className="grid gap-px overflow-hidden border border-[#183446] bg-[#183446] sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-px overflow-hidden border border-[#183446] bg-[#183446] sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
           {finance.map((item) => (
-            <article key={item.label} className="bg-[#163044] p-5 text-white">
+            <article
+              key={item.label}
+              className="min-w-0 bg-[#163044] p-5 text-white"
+            >
               <p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-white/46">
                 {item.label}
               </p>
-              <div className="mt-3 flex items-end justify-between gap-3">
-                <p className="font-mono text-[23px] font-semibold tracking-[-0.04em]">
+              <div className="mt-3 flex flex-wrap items-end justify-between gap-2">
+                <p
+                  className="min-w-0 break-words font-mono text-[20px] font-semibold tabular-nums tracking-[-0.04em]"
+                  title={item.value}
+                >
                   {item.value}
                 </p>
                 <span

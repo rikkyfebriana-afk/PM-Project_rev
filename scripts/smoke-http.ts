@@ -346,6 +346,10 @@ try {
   );
   const monthlyDashboard = await (await request('/dashboard')).text();
   assert.ok(
+    monthlyDashboard.includes('Rp 1.800.000,50'),
+    'Dashboard must show full active PO value without abbreviation',
+  );
+  assert.ok(
     monthlyDashboard.includes('Grafik PO bulanan') &&
       monthlyDashboard.includes('PO Selesai 1'),
   );
