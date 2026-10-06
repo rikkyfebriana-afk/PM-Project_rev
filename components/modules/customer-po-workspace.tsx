@@ -25,6 +25,7 @@ const money = (v: string) =>
     maximumFractionDigits: 2,
   }).format(Number(v));
 function PoForm({ p, enabled }: { p: Po; enabled: boolean }) {
+  const [poStatus, setPoStatus] = useState(p.customerPoStatus);
   const [state, action, pending] = useActionState(saveCustomerPo, idleState);
   return (
     <form action={action} className="mt-5 space-y-4">
@@ -95,7 +96,8 @@ function PoForm({ p, enabled }: { p: Po; enabled: boolean }) {
         <Field label="Status PO">
           <select
             name="customerPoStatus"
-            defaultValue={p.customerPoStatus}
+            value={poStatus}
+            onChange={(e) => setPoStatus(e.target.value)}
             className={inputClass}
           >
             {poStatuses.map((s) => (
@@ -115,6 +117,24 @@ function PoForm({ p, enabled }: { p: Po; enabled: boolean }) {
             className={inputClass}
           />
         </Field>
+        {poStatus === 'COMPLETED' ? (
+          <Field label="Tanggal selesai PO">
+            <input
+              name="customerPoCompletedDate"
+              type="date"
+              required
+              min={p.customerPoDate || undefined}
+              defaultValue={p.customerPoCompletedDate}
+              className={inputClass}
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Tanggal pekerjaan PO selesai, bukan tanggal pembayaran. Dipakai
+              untuk grafik bulanan.
+            </p>
+          </Field>
+        ) : (
+          <input type="hidden" name="customerPoCompletedDate" value="" />
+        )}
         <div className="md:col-span-2">
           <Field label="Catatan update">
             <textarea

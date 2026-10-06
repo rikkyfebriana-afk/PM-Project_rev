@@ -9,6 +9,7 @@ import { dateOnlyInTimeZone } from '@/lib/business-date';
 import { prisma } from '@/lib/prisma';
 import { accessibleProjectWhere } from '@/lib/projects/access';
 import { formatRupiahShort } from '@/lib/projects/presentation';
+import { buildMonthlyPo } from './po-monthly';
 
 const phaseShort: Record<string, string> = {
   PLANNING: 'PLAN',
@@ -145,6 +146,17 @@ export async function getDashboardData(
 
   return {
     demoMode: false,
+    monthlyPo: buildMonthlyPo(
+      projects.map((p) => ({
+        customerPoNumber: p.customerPoNumber,
+        customerPoStatus: p.customerPoStatus,
+        customerPoDate: p.customerPoDate?.toISOString().slice(0, 10) ?? null,
+        customerPoCompletedDate:
+          p.customerPoCompletedDate?.toISOString().slice(0, 10) ?? null,
+        poValue: p.poValue.toFixed(2),
+      })),
+      today.getUTCFullYear(),
+    ),
     portfolioStatus: [
       {
         label: 'Active',

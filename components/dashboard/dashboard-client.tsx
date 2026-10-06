@@ -1,4 +1,5 @@
 'use client';
+import { PoMonthlyChart } from './po-monthly-chart';
 
 import {
   AlertTriangle,
@@ -261,6 +262,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         </div>
       </section>
 
+      {data.monthlyPo && <PoMonthlyChart data={data.monthlyPo} />}
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(330px,0.75fr)]">
         <article className="border border-[#dde3e7] bg-white">
           <div className="flex items-start justify-between border-b border-[#e5e9ec] px-5 py-4 md:px-6">

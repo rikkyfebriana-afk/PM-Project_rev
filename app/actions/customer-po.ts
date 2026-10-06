@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { lockEditableProject } from '@/lib/operations/transaction';
 import type { MutationState } from '@/lib/operations/validation';
 import { customerPoSchema } from '@/lib/customer-po/validation';
+import { dateOnlyInTimeZone } from '@/lib/business-date';
 
 export async function saveCustomerPo(
   _state: MutationState,
@@ -23,6 +24,14 @@ export async function saveCustomerPo(
       message: parsed.error.issues.map((i) => i.message).join(' '),
     };
   try {
+    const today = dateOnlyInTimeZone(
+      new Date(),
+      process.env.APP_TIME_ZONE || 'Asia/Jakarta',
+    )
+      .toISOString()
+      .slice(0, 10);
+    if (parsed.data.customerPoCompletedDate > today)
+      throw new Error('Tanggal selesai PO tidak boleh di masa depan.');
     await prisma.$transaction(async (tx) => {
       const { projectId, updatedAt, ...fields } = parsed.data;
       const p = await lockEditableProject(tx, projectId, user);
@@ -36,6 +45,9 @@ export async function saveCustomerPo(
         data: {
           ...fields,
           customerPoDate: new Date(`${fields.customerPoDate}T00:00:00Z`),
+          customerPoCompletedDate: fields.customerPoCompletedDate
+            ? new Date(`${fields.customerPoCompletedDate}T00:00:00Z`)
+            : null,
           customerPoDelivery: fields.customerPoDelivery
             ? new Date(`${fields.customerPoDelivery}T00:00:00Z`)
             : null,
@@ -53,6 +65,8 @@ export async function saveCustomerPo(
           metadata: {
             before: {
               customerPoNumber: p.customerPoNumber,
+              customerPoCompletedDate:
+                p.customerPoCompletedDate?.toISOString().slice(0, 10) ?? '',
               customerPoStatus: p.customerPoStatus,
               poValue: p.poValue.toString(),
               customerPoTax: p.customerPoTax.toString(),

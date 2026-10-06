@@ -306,8 +306,66 @@ try {
   const poPage = await (await request('/customer-po')).text();
   const financePoPage = await (await request('/finance')).text();
   assert.ok(financePoPage.includes('Nilai berdasarkan status PO Customer'));
-  assert.ok(financePoPage.includes('Rp 1.300.000,50') && financePoPage.includes('In Progress') && financePoPage.includes('QA-PO/001'));
+  assert.ok(
+    financePoPage.includes('Rp 1.300.000,50') &&
+      financePoPage.includes('In Progress') &&
+      financePoPage.includes('QA-PO/001'),
+  );
   assert.ok(poPage.includes('PO dicatat') && poPage.includes('PO diperbarui'));
+  const completionForm = await form(
+    '/customer-po',
+    'customerPoNumber',
+    (f) => f.get('projectId') === 'smoke-p1',
+  );
+  const completionValues = {
+    ...poValues,
+    poValue: '1300000.50',
+    customerPoStatus: 'COMPLETED',
+    customerPoCompletedDate: '2026-10-01',
+  };
+  assert.ok(
+    (
+      await post('/customer-po', completionForm, {
+        ...completionValues,
+        customerPoCompletedDate: '',
+      })
+    ).text.includes('Isi tanggal selesai PO'),
+  );
+  assert.ok(
+    (
+      await post('/customer-po', completionForm, {
+        ...completionValues,
+        customerPoCompletedDate: '2099-01-01',
+      })
+    ).text.includes('tidak boleh di masa depan'),
+  );
+  assert.ok(
+    (
+      await post('/customer-po', completionForm, completionValues)
+    ).text.includes('PO Customer tersimpan'),
+  );
+  const monthlyDashboard = await (await request('/dashboard')).text();
+  assert.ok(
+    monthlyDashboard.includes('Grafik PO bulanan') &&
+      monthlyDashboard.includes('PO Selesai 1'),
+  );
+  assert.ok(
+    (
+      await post(
+        '/customer-po',
+        await form(
+          '/customer-po',
+          'customerPoNumber',
+          (f) => f.get('projectId') === 'smoke-p1',
+        ),
+        {
+          ...completionValues,
+          customerPoStatus: 'IN_PROGRESS',
+          customerPoCompletedDate: '',
+        },
+      )
+    ).text.includes('PO Customer tersimpan'),
+  );
   const tamperedBudget = await form(
     '/finance',
     'budgetValue',
@@ -492,7 +550,9 @@ try {
   assert.ok(viewerPlan.includes('QA-001') && !viewerPlan.includes('QA-002'));
   const viewerPo = await (await request('/customer-po')).text();
   const viewerFinance = await (await request('/finance')).text();
-  assert.ok(viewerFinance.includes('QA-001') && !viewerFinance.includes('QA-002'));
+  assert.ok(
+    viewerFinance.includes('QA-001') && !viewerFinance.includes('QA-002'),
+  );
   assert.ok(viewerPo.includes('QA-001') && !viewerPo.includes('QA-002'));
   assert.ok(
     (await post('/customer-po', updatedPo, poValues)).text.includes(

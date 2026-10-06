@@ -149,6 +149,7 @@ model Project {
   poValue          Decimal         @default(0) @db.Decimal(18, 2)
   customerPoNumber String?
   customerPoDate   DateTime?       @db.Date
+  customerPoCompletedDate DateTime? @db.Date
   customerPoDescription String?
   customerPoTax    Decimal         @default(0) @db.Decimal(18, 2)
   customerPoDelivery DateTime?     @db.Date

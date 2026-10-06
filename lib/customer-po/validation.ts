@@ -39,6 +39,7 @@ export const customerPoSchema = z
       .max(100),
     clientName: z.string().trim().min(2, 'Nama customer wajib diisi.').max(160),
     customerPoDate: date,
+    customerPoCompletedDate: z.union([date, z.literal('')]).default(''),
     customerPoDescription: z.string().trim().min(3).max(2000),
     poValue: money,
     customerPoTax: money,
@@ -47,6 +48,23 @@ export const customerPoSchema = z
     customerPoNotes: z.string().trim().max(4000),
   })
   .superRefine((v, ctx) => {
+    if (v.customerPoStatus === 'COMPLETED' && !v.customerPoCompletedDate)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['customerPoCompletedDate'],
+        message: 'Isi tanggal selesai PO untuk status Selesai.',
+      });
+    if (
+      v.customerPoCompletedDate &&
+      (v.customerPoStatus !== 'COMPLETED' ||
+        v.customerPoCompletedDate < v.customerPoDate)
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['customerPoCompletedDate'],
+        message:
+          'Tanggal selesai hanya untuk PO Selesai dan tidak boleh sebelum tanggal PO.',
+      });
     if (v.customerPoDelivery && v.customerPoDelivery < v.customerPoDate)
       ctx.addIssue({
         code: 'custom',

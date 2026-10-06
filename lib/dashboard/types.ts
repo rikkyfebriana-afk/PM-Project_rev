@@ -14,6 +14,7 @@ export type DashboardProject = {
 };
 
 export type DashboardData = {
+  monthlyPo?: import('./po-monthly').MonthlyPoData;
   demoMode: boolean;
   portfolioStatus: Array<{
     label: string;
