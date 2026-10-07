@@ -48,11 +48,11 @@ export function BoqManualForm({
   const update = (index: number, key: keyof BoqImportRowInput, value: string) =>
     setRows(rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
   return (
-    <details className="border border-teal-200 bg-teal-50/40 p-4">
-      <summary className="cursor-pointer text-sm font-semibold text-teal-800">
+    <details className="min-w-0 border border-teal-200 bg-teal-50/40 p-3 text-center text-slate-800 sm:p-4">
+      <summary className="cursor-pointer text-base font-semibold text-teal-900">
         Input manual BoQ — tanpa Excel
       </summary>
-      <p className="mt-3 text-sm">
+      <p className="mt-3 break-words text-sm leading-6">
         Proyek:{' '}
         <strong>
           {project.code} — {project.name}
@@ -65,14 +65,14 @@ export function BoqManualForm({
         Simpan ditekan. Berpindah proyek atau memuat ulang akan mengosongkan
         input.
       </p>
-      <form action={action} className="mt-4 space-y-4">
+      <form action={action} className="mx-auto mt-4 w-full min-w-0 max-w-4xl space-y-4 [&_input:not([type=checkbox])]:text-center [&_select]:text-center">
         <input type="hidden" name="projectId" value={project.id} />
         <input type="hidden" name="expectedVersion" value={version} />
         <input type="hidden" name="manualRows" value={JSON.stringify(rows)} />
         <fieldset disabled={!enabled || pending} className="space-y-4">
           {rows.map((r, index) => (
-            <div key={index} className="border border-slate-200 bg-white p-4">
-              <div className="mb-3 flex justify-between text-sm font-semibold">
+            <div key={index} className="min-w-0 border border-slate-200 bg-white p-3 sm:p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-center gap-4 text-sm font-semibold">
                 <span>Baris {index + 1}</span>
                 <button
                   type="button"
@@ -165,7 +165,7 @@ export function BoqManualForm({
                   />
                 </Field>
               </div>
-              <p className="mt-3 text-right text-sm font-semibold">
+              <p className="mt-3 break-words text-center text-sm font-semibold">
                 Subtotal:{' '}
                 {totals[index] === null
                   ? 'Periksa angka'
@@ -186,7 +186,7 @@ export function BoqManualForm({
           >
             + Tambah baris ({rows.length}/200)
           </button>
-          <p className="text-lg font-semibold">
+          <p className="break-words text-lg font-semibold">
             Total:{' '}
             {totals.some((v) => v === null)
               ? 'Periksa angka'
@@ -196,7 +196,7 @@ export function BoqManualForm({
             Quantity maksimal 4 desimal; harga 2 desimal. Gunakan titik desimal
             tanpa pemisah ribuan. Total dihitung ulang dan divalidasi server.
           </p>
-          <label className="flex items-start gap-2 text-sm">
+          <label className="mx-auto flex max-w-2xl items-start justify-center gap-2 text-left text-sm leading-6">
             <input type="checkbox" name="confirm" value="yes" required />
             Saya sudah memeriksa seluruh item dan setuju membuat revisi Draft
             baru, menggantikan Draft sebelumnya bila ada.

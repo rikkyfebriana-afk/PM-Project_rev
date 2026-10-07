@@ -361,17 +361,17 @@ export function BoqImportWorkspace({
   }
 
   return (
-    <main className="mx-auto max-w-[1600px] space-y-6 p-4 pb-24 md:p-7 lg:pb-9 xl:p-9">
+    <main className="mx-auto w-full min-w-0 max-w-[1600px] space-y-6 p-4 pb-24 text-[#172d3e] md:p-7 lg:pb-9 xl:p-9">
       <section className="border border-[#dce2e6] bg-white p-5 md:p-7">
-        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-3xl">
+        <div className="flex flex-col items-center gap-5 text-center">
+          <div className="min-w-0 max-w-3xl">
             <p className="section-kicker text-[#d85832]!">Cost baseline</p>
             <h2 className="mt-3 text-2xl font-semibold tracking-[-0.035em] text-[#172d3e] md:text-3xl">
               Bill of Quantities
             </h2>
             <p className="mt-3 text-sm leading-6 text-[#6e7e88]">
-              Impor BoQ dari Excel, periksa pemetaan kolom dan nilai setiap
-              item, lalu simpan sebagai revisi baru dengan jejak audit.
+              Input BoQ secara manual atau impor dari Excel, periksa nilai
+              setiap item, lalu simpan sebagai revisi baru dengan jejak audit.
             </p>
           </div>
           <Button
@@ -415,7 +415,7 @@ export function BoqImportWorkspace({
         ].map((metric, index) => (
           <article
             key={metric.label}
-            className={`relative min-h-32 p-5 ${index ? 'sm:border-l sm:border-[#e5e9ec]' : ''}`}
+            className={`relative min-h-32 min-w-0 break-words p-5 text-center ${index ? 'sm:border-l sm:border-[#e5e9ec]' : ''}`}
           >
             <span
               className={`absolute inset-y-0 left-0 w-1 ${metric.accent}`}
@@ -432,16 +432,16 @@ export function BoqImportWorkspace({
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <article className="border border-[#dce2e6] bg-white">
-            <div className="border-b border-[#e5e9ec] p-5 md:p-6">
+            <div className="border-b border-[#e5e9ec] p-5 text-center md:p-6">
               <p className="section-kicker">New revision</p>
               <h3 className="section-title">
                 1. Pilih proyek, input manual atau impor file
               </h3>
             </div>
-            <div className="grid gap-5 p-5 md:p-6">
-              <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-[#5f707b]">
+            <div className="grid min-w-0 gap-5 p-4 md:p-6">
+              <label className="grid min-w-0 gap-2 text-center text-xs font-semibold uppercase tracking-[0.08em] text-[#425563]">
                 Project
                 <NativeSelect
                   value={projectId}
@@ -449,7 +449,7 @@ export function BoqImportWorkspace({
                     setProjectId(event.target.value);
                     setCommitResult(null);
                   }}
-                  className="w-full"
+                  className="w-full min-w-0 max-w-full [&_select]:text-center"
                   disabled={!data.projects.length}
                 >
                   {!data.projects.length && (
@@ -465,6 +465,11 @@ export function BoqImportWorkspace({
                   ))}
                 </NativeSelect>
               </label>
+              {project && (
+                <p className="min-w-0 break-words text-center text-sm leading-6 text-[#172d3e]">
+                  <strong>{project.code}</strong> — {project.name}
+                </p>
+              )}
 
               {project && (
                 <BoqManualForm
