@@ -123,6 +123,70 @@ try {
     'plannedDate',
     (f) => !f.get('id'),
   );
+  const manualBoqForm = await form('/boq', 'manualRows');
+  const manualItems = [
+    {
+      itemNo: '1',
+      itemCode: 'QA-MANUAL-01',
+      itemType: 'MATERIAL',
+      description: 'Manual panel',
+      unit: 'PCS',
+      quantity: '2.5',
+      unitPrice: '100.25',
+    },
+    {
+      itemNo: '2',
+      itemCode: '',
+      itemType: 'SERVICE',
+      description: 'Installation service',
+      unit: 'LOT',
+      quantity: '1',
+      unitPrice: '50',
+    },
+  ];
+  const manualValues = {
+    projectId: 'smoke-p1',
+    manualRows: JSON.stringify(manualItems),
+    confirm: 'yes',
+  };
+  assert.ok(
+    (
+      await post('/boq', manualBoqForm, {
+        ...manualValues,
+        manualRows: JSON.stringify([manualItems[0], manualItems[0]]),
+      })
+    ).text.includes('duplikat'),
+  );
+  assert.ok(
+    (await post('/boq', manualBoqForm, manualValues)).text.includes(
+      'BoQ manual versi 1 tersimpan',
+    ),
+  );
+  assert.ok(
+    (await post('/boq', manualBoqForm, manualValues)).text.includes(
+      'Tidak dibuat duplikat',
+    ),
+  );
+  const revisedManual = {
+    ...manualValues,
+    manualRows: JSON.stringify(
+      manualItems.map((r) => ({ ...r, unitPrice: '200' })),
+    ),
+  };
+  assert.ok(
+    (await post('/boq', manualBoqForm, revisedManual)).text.includes(
+      'Revisi BoQ sudah berubah',
+    ),
+  );
+  assert.ok(
+    (
+      await post('/boq', await form('/boq', 'manualRows'), revisedManual)
+    ).text.includes('BoQ manual versi 2 tersimpan'),
+  );
+  const manualReplay = await form('/boq', 'manualRows');
+  console.log(
+    'PASS manual BoQ material/service draft, duplicate retry and stale revision protection',
+  );
   const values = {
     projectId: 'smoke-p1',
     phase: 'PRODUCTION',
@@ -542,6 +606,11 @@ try {
   const adminBudget = await form('/finance', 'budgetValue');
   const viewerHome = await login('smoke-viewer');
   assert.ok(
+    (await post('/boq', manualReplay, manualValues)).text.includes(
+      'Akses input manual BoQ ditolak',
+    ),
+  );
+  assert.ok(
     (await post('/time-plan', planReplay, secondUpdate)).text.includes(
       'Akses ubah Time Plan ditolak',
     ),
@@ -579,6 +648,22 @@ try {
     'PASS viewer project isolation, export denial and mutation denial',
   );
   await login('smoke-pm');
+  const pmManual = await form('/boq', 'manualRows');
+  assert.ok(
+    (
+      await post('/boq', pmManual, { ...manualValues, projectId: 'smoke-p2' })
+    ).text.includes('akses edit ditolak'),
+  );
+  assert.ok(
+    (
+      await post('/boq', pmManual, {
+        ...manualValues,
+        manualRows: JSON.stringify(
+          manualItems.map((r) => ({ ...r, unitPrice: '300' })),
+        ),
+      })
+    ).text.includes('BoQ manual versi 3 tersimpan'),
+  );
   assert.ok(
     (
       await post('/time-plan', planActivation, { active: 'false' })

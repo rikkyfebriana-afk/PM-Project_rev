@@ -1,4 +1,5 @@
 'use client';
+import { BoqManualForm } from './boq-manual-form';
 
 import {
   type ChangeEvent,
@@ -78,7 +79,9 @@ type BoqSummary = {
 
 type BoqImportWorkspaceProps = {
   data: BoqWorkspaceData;
-  commitAction: (input: BoqImportCommitRequest) => Promise<BoqImportActionState>;
+  commitAction: (
+    input: BoqImportCommitRequest,
+  ) => Promise<BoqImportActionState>;
   approveAction: (input: BoqApprovalPayload) => Promise<BoqApprovalActionState>;
 };
 
@@ -433,7 +436,9 @@ export function BoqImportWorkspace({
           <article className="border border-[#dce2e6] bg-white">
             <div className="border-b border-[#e5e9ec] p-5 md:p-6">
               <p className="section-kicker">New revision</p>
-              <h3 className="section-title">1. Pilih proyek dan file sumber</h3>
+              <h3 className="section-title">
+                1. Pilih proyek, input manual atau impor file
+              </h3>
             </div>
             <div className="grid gap-5 p-5 md:p-6">
               <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-[#5f707b]">
@@ -461,6 +466,14 @@ export function BoqImportWorkspace({
                 </NativeSelect>
               </label>
 
+              {project && (
+                <BoqManualForm
+                  key={project.id}
+                  project={project}
+                  version={Math.max(0, ...revisions.map((r) => r.version))}
+                  enabled={project.canEdit && !data.demoMode}
+                />
+              )}
               {project && !project.canEdit && (
                 <div className="flex items-start gap-2 border border-[#d9e0e4] bg-[#f5f7f8] px-4 py-3 text-xs leading-5 text-[#62737e]">
                   <LockKeyhole className="mt-0.5 size-4 shrink-0" /> Anda dapat
