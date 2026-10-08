@@ -39,6 +39,8 @@ export async function saveCustomerPo(
         throw new Error(
           'Data proyek sudah berubah. Muat ulang sebelum menyimpan PO.',
         );
+      if (p.quotationId && fields.clientName !== p.clientName)
+        throw new Error('Lepaskan hubungan SPH sebelum mengganti customer PO.');
       // Update the existing project's value, never add it to previous revenue.
       await tx.project.update({
         where: { id: p.id },
@@ -89,6 +91,7 @@ export async function saveCustomerPo(
       '/dashboard',
       '/finance',
       '/reports',
+      '/quotations',
     ])
       revalidatePath(path);
     return {

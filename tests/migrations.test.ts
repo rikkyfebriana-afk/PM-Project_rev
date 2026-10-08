@@ -121,9 +121,10 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
     }>(
       `SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname='public'`,
     );
-    assert.equal(security.rows.length, 13);
+    assert.equal(security.rows.length, 14);
     assert.ok(security.rows.every((row) => row.rowsecurity));
     await db.exec('SET ROLE anon');
+    await assert.rejects(db.query('SELECT * FROM public."Quotation"'), /permission denied/);
     await assert.rejects(
       db.query('SELECT * FROM public."PlanTask"'),
       /permission denied/,
@@ -133,6 +134,7 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
       /permission denied/,
     );
     await db.exec('RESET ROLE; SET ROLE authenticated');
+    await assert.rejects(db.query('SELECT * FROM public."Quotation"'), /permission denied/);
     await assert.rejects(
       db.query('SELECT * FROM public."Project"'),
       /permission denied/,

@@ -38,6 +38,7 @@ const navigation = [
   { label: 'Finance', href: '/finance', icon: BarChart3 },
   { label: 'Reports', href: '/reports', icon: PackageCheck },
   { label: 'Action Center', href: '/actions', icon: Bell },
+  { label: 'Quotation / SPH', href: '/quotations', icon: FileSpreadsheet },
 ];
 
 type WorkspaceShellProps = {
@@ -85,7 +86,7 @@ export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
             Workspace
           </p>
           <div className="space-y-1">
-            {navigation.map(({ label, href, icon: Icon }) => {
+            {navigation.filter(item => item.href !== '/quotations' || user.role === 'ADMIN').map(({ label, href, icon: Icon }) => {
               const active =
                 pathname === href || pathname.startsWith(`${href}/`);
               return (
@@ -183,7 +184,7 @@ export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
               className="absolute right-4 top-[76px] max-h-[70vh] w-64 overflow-y-auto border border-slate-200 bg-white p-3 shadow-xl lg:hidden"
             >
               {[
-                ...navigation,
+                ...navigation.filter(item => item.href !== '/quotations' || user.role === 'ADMIN'),
                 { label: 'Settings', href: '/settings', icon: Settings },
               ].map(({ label, href }) => (
                 <Link

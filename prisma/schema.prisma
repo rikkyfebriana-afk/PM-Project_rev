@@ -179,10 +179,34 @@ model Project {
   auditLogs        AuditLog[]
   costEntries      CostEntry[]
   planTasks        PlanTask[]
+  quotationId      String?
+  quotation        Quotation? @relation(fields: [quotationId], references: [id], onDelete: Restrict)
 
+  @@index([quotationId])
   @@index([status, health])
   @@index([projectManagerId])
   @@index([plannedFinish])
+}
+
+model Quotation {
+  id String @id @default(cuid())
+  number String @unique
+  clientName String
+  title String
+  value Decimal @db.Decimal(18, 2)
+  issuedDate DateTime @db.Date
+  sentDate DateTime? @db.Date
+  validUntil DateTime? @db.Date
+  followUpDate DateTime? @db.Date
+  pic String
+  status String @default("DRAFT")
+  notes String @default("")
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  projects Project[]
+
+  @@index([status, followUpDate])
 }
 
 model PlanTask {

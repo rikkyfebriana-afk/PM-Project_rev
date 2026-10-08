@@ -115,6 +115,7 @@ try {
   assert.equal(anonymous.status, 401);
   assert.equal((await request('/customer-po')).status, 307);
   assert.equal((await request('/time-plan')).status, 307);
+  assert.equal((await request('/quotations')).status, 307);
   const home = await login('smoke-admin');
   assert.ok(home.includes('QA-001') && home.includes('QA-002'));
   console.log('PASS login and administrator portfolio scope');
@@ -452,6 +453,31 @@ try {
   console.log(
     'PASS PO create/update, stale write rejection, exact revenue, audit history and Finance guard',
   );
+  const sphValues = { number: 'QA-SPH/001', clientName: 'Synthetic customer', title: 'Synthetic quotation', value: '2000000', issuedDate: '2026-09-01', sentDate: '2026-09-02', validUntil: '2026-12-31', followUpDate: '2026-10-10', pic: 'QA admin', status: 'SENT', notes: 'Isolated test only' };
+  const createSph = await form('/quotations', 'number', f => !f.get('id'));
+  assert.ok((await post('/quotations', createSph, sphValues)).text.includes('SPH tersimpan'));
+  assert.ok(!(await post('/quotations', createSph, sphValues)).text.includes('SPH tersimpan'));
+  const editSph = await form('/quotations', 'number', f => !!f.get('id'));
+  const sphId = String(editSph.get('id'));
+  const sphLink = await form('/quotations', 'operation', f => f.get('quotationId') === sphId && f.get('operation') === 'link');
+  assert.ok((await post('/quotations', sphLink, {projectId:'smoke-p1'})).text.includes('Hubungan SPH'));
+  assert.ok((await post('/quotations', editSph, sphValues)).text.includes('SPH sudah berubah'));
+  assert.ok((await (await request('/quotations')).text()).includes('Sebagian menjadi PO'));
+  // A second existing customer PO links to the same quotation without duplicating revenue.
+  const secondPo = await form('/customer-po', 'customerPoNumber', f => f.get('projectId') === 'smoke-p2');
+  assert.ok((await post('/customer-po', secondPo, {...poValues, projectId:'smoke-p2', customerPoNumber:'QA-PO/002',poValue:'500000'})).text.includes('PO Customer tersimpan'));
+  const secondLink = await form('/quotations','operation',f => f.get('quotationId') === sphId && f.get('operation') === 'link');
+  assert.ok((await post('/quotations', secondLink, {projectId:'smoke-p2'})).text.includes('Hubungan SPH'));
+  const duplicateLink = await form('/quotations','operation',f => f.get('quotationId') === sphId && f.get('operation') === 'link');
+  assert.ok((await post('/quotations',duplicateLink,{projectId:'smoke-p1'})).text.includes('sudah terhubung'));
+  const completeSph = await form('/quotations','number',f => f.get('id') === sphId);
+  assert.ok((await post('/quotations',completeSph,{...sphValues,status:'WON'})).text.includes('SPH tersimpan'));
+  const sphHtml = await (await request('/quotations')).text();
+  assert.ok(sphHtml.includes('QA-PO/001') && sphHtml.includes('QA-PO/002'));
+  const detach = await form('/quotations','operation',f => f.get('operation') === 'unlink' && f.get('projectId') === 'smoke-p2');
+  assert.ok((await post('/quotations',detach,{})).text.includes('Hubungan SPH'));
+  const sphReplay = await form('/quotations','number',f => f.get('id') === sphId);
+  console.log('PASS SPH create, duplicate number, stale write, multi-PO linkage, duplicate link guard, completion and unlink');
   const taskValues = {
     projectId: 'smoke-p1',
     id: '',
@@ -605,6 +631,8 @@ try {
   );
   const adminBudget = await form('/finance', 'budgetValue');
   const viewerHome = await login('smoke-viewer');
+  assert.ok((await (await request('/quotations')).text()).includes('hanya dapat diakses Administrator'));
+  assert.ok((await post('/quotations',sphReplay,sphValues)).text.includes('Hanya Administrator'));
   assert.ok(
     (await post('/boq', manualReplay, manualValues)).text.includes(
       'Akses input manual BoQ ditolak',
