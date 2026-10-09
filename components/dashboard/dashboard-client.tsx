@@ -1,4 +1,5 @@
 'use client';
+import { dashboardCategoryHref } from '@/lib/dashboard/categories';
 import { PoMonthlyChart } from './po-monthly-chart';
 
 import {
@@ -197,9 +198,11 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         </div>
         <div className="grid overflow-hidden border border-[#dde3e7] bg-white sm:grid-cols-2 xl:grid-cols-5">
           {portfolioStatus.map((item, index) => (
-            <article
+            <Link
               key={item.label}
-              className={`status-card relative p-5 ${index > 0 ? 'xl:border-l xl:border-[#e5e9ec]' : ''}`}
+              href={dashboardCategoryHref(item.label)}
+              aria-label={`Lihat daftar site ${item.label}`}
+              className={`status-card relative block p-5 transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-700 ${index > 0 ? 'xl:border-l xl:border-[#e5e9ec]' : ''}`}
             >
               <span className={`status-accent status-${item.tone}`} />
               <div className="flex items-start justify-between gap-4">
@@ -214,7 +217,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                 <span className={`status-dot dot-${item.tone}`} />
               </div>
               <p className="mt-3 text-[11px] text-[#8a969f]">{item.note}</p>
-            </article>
+            </Link>
           ))}
         </div>
       </section>
@@ -308,16 +311,11 @@ export function DashboardClient({ data }: { data: DashboardData }) {
           </div>
           <div className="divide-y divide-[#edf0f2]">
             {alerts.map((alert) => (
-              <button
+              <Link
                 key={alert.title}
-                type="button"
-                onClick={() => {
-                  setSearchTerm('');
-                  setHealthFilter(
-                    alert.tone === 'red' ? 'Critical' : 'Attention',
-                  );
-                }}
-                className="group flex w-full items-center gap-3 px-5 py-[17px] text-left transition hover:bg-[#f8fafb]"
+                href={dashboardCategoryHref(alert.title)}
+                aria-label={`Lihat daftar site ${alert.title}`}
+                className="group flex w-full items-center gap-3 px-5 py-[17px] text-left transition hover:bg-[#f8fafb] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-700"
               >
                 <span
                   className={`h-8 w-1 shrink-0 ${alert.tone === 'red' ? 'bg-[#e35645]' : 'bg-[#e4a23a]'}`}
@@ -338,7 +336,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                 <span className="text-[#9ba5ad] transition group-hover:translate-x-0.5">
                   ›
                 </span>
-              </button>
+              </Link>
             ))}
           </div>
           <div className="m-5 flex items-center gap-3 bg-[#f1f5f6] p-3 text-[10px] text-[#687681]">

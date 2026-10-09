@@ -119,6 +119,16 @@ try {
   const home = await login('smoke-admin');
   assert.ok(home.includes('QA-001') && home.includes('QA-002'));
   console.log('PASS login and administrator portfolio scope');
+  for (const category of ['active','on-track','attention','critical','closed','material-shortage','delayed','fat-punch-list','budget-risk']) {
+    assert.ok(home.includes(`/dashboard/sites?category=${category}`));
+    const response = await request(`/dashboard/sites?category=${category}`);
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    if (['active','on-track'].includes(category)) assert.ok(html.includes('QA-001') && html.includes('QA-002'));
+    else assert.ok(html.includes('Tidak ada site/proyek pada kategori'));
+  }
+  assert.equal((await request('/dashboard/sites?category=invalid')).status,404);
+  console.log('PASS dashboard category links, matching project lists, empty categories and invalid category');
   const production = await form(
     '/production',
     'plannedDate',
@@ -631,6 +641,8 @@ try {
   );
   const adminBudget = await form('/finance', 'budgetValue');
   const viewerHome = await login('smoke-viewer');
+  const viewerSites = await (await request('/dashboard/sites?category=active')).text();
+  assert.ok(viewerSites.includes('QA-001') && !viewerSites.includes('QA-002'));
   assert.ok((await (await request('/quotations')).text()).includes('hanya dapat diakses Administrator'));
   assert.ok((await post('/quotations',sphReplay,sphValues)).text.includes('Hanya Administrator'));
   assert.ok(

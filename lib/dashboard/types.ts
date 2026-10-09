@@ -14,6 +14,7 @@ export type DashboardProject = {
 };
 
 export type DashboardData = {
+  categoryProjects?: Record<import('./categories').DashboardCategory, string[]>;
   monthlyPo?: import('./po-monthly').MonthlyPoData;
   demoMode: boolean;
   portfolioStatus: Array<{

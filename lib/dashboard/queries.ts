@@ -146,6 +146,17 @@ export async function getDashboardData(
 
   return {
     demoMode: false,
+    categoryProjects: {
+      active: active.map(p => p.code),
+      'on-track': active.filter(p => p.health === 'ON_TRACK').map(p => p.code),
+      attention: active.filter(p => p.health === 'ATTENTION').map(p => p.code),
+      critical: active.filter(p => p.health === 'CRITICAL').map(p => p.code),
+      closed: closed.map(p => p.code),
+      'material-shortage': active.filter(p => shortageProjects.has(p.id)).map(p => p.code),
+      delayed: delayed.map(p => p.code),
+      'fat-punch-list': active.filter(p => p.actionItems.some(a => a.milestone?.phase === 'FAT')).map(p => p.code),
+      'budget-risk': active.filter(p => !p.budgetValue.isZero() && p.forecastCost.dividedBy(p.budgetValue).greaterThanOrEqualTo(0.95)).map(p => p.code),
+    },
     monthlyPo: buildMonthlyPo(
       projects.map((p) => ({
         customerPoNumber: p.customerPoNumber,
