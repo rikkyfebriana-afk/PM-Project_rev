@@ -116,6 +116,7 @@ try {
   assert.equal((await request('/customer-po')).status, 307);
   assert.equal((await request('/time-plan')).status, 307);
   assert.equal((await request('/quotations')).status, 307);
+  assert.equal((await request('/team-targets')).status, 307);
   const home = await login('smoke-admin');
   assert.ok(home.includes('QA-001') && home.includes('QA-002'));
   console.log('PASS login and administrator portfolio scope');
@@ -129,6 +130,25 @@ try {
   }
   assert.equal((await request('/dashboard/sites?category=invalid')).status,404);
   console.log('PASS dashboard category links, matching project lists, empty categories and invalid category');
+  const teamPath='/team-targets?week=2026-10-05';
+  const dailyValues={projectId:'smoke-p1',title:'QA daily assembly',pic:'Budi without account',scheduledDate:'2026-10-05',targetQty:'17',actualQty:'12',unit:'unit',priority:'HIGH',status:'IN_PROGRESS',notes:''};
+  const newDaily=await form(teamPath,'targetQty',f=>!f.get('id'));
+  assert.ok((await post(teamPath,newDaily,dailyValues)).text.includes('Target harian tersimpan'));
+  assert.ok((await post(teamPath,newDaily,dailyValues)).text.includes('Tidak dibuat aktivitas ganda'));
+  const editDaily=await form(teamPath,'targetQty',f=>!!f.get('id'));
+  const dailyId=String(editDaily.get('id'));
+  assert.ok((await post(teamPath,editDaily,{...dailyValues,scheduledDate:'2026-10-06'})).text.includes('Isi alasan perubahan jadwal'));
+  assert.ok((await post(teamPath,editDaily,{...dailyValues,scheduledDate:'2026-10-06',rescheduleReason:'Material tiba besok'})).text.includes('Target harian tersimpan'));
+  assert.ok((await post(teamPath,editDaily,dailyValues)).text.includes('Aktivitas sudah berubah'));
+  assert.ok((await (await request(teamPath)).text()).includes('Material tiba besok'));
+  const dailyDone=await form(teamPath,'confirm',f=>f.get('id')===dailyId);
+  assert.ok((await post(teamPath,dailyDone,{confirm:'yes'})).text.includes('Aktivitas selesai'));
+  const dailyReopen=await form(teamPath,'targetQty',f=>f.get('id')===dailyId);
+  assert.ok((await post(teamPath,dailyReopen,{...dailyValues,status:'BLOCKED',notes:'Material belum tiba',scheduledDate:'2026-09-28',rescheduleReason:'Koreksi tanggal awal'})).text.includes('Target harian tersimpan'));
+  const dailyReplay=await form(teamPath,'targetQty',f=>f.get('id')===dailyId);
+  const generalDaily=await form(teamPath,'targetQty',f=>!f.get('id'));
+  assert.ok((await post(teamPath,generalDaily,{...dailyValues,projectId:'',title:'QA internal private task'})).text.includes('Target harian tersimpan'));
+  console.log('PASS free-text PIC, exact daily targets, duplicate retry, completion, rescheduling audit, backlog and general activities');
   const production = await form(
     '/production',
     'plannedDate',
@@ -641,6 +661,9 @@ try {
   );
   const adminBudget = await form('/finance', 'budgetValue');
   const viewerHome = await login('smoke-viewer');
+  const viewerTargets=await(await request(teamPath)).text();
+  assert.ok(viewerTargets.includes('QA daily assembly')&&!viewerTargets.includes('QA internal private task'));
+  assert.ok((await post(teamPath,dailyReplay,dailyValues)).text.includes('Akses ubah Target Tim ditolak'));
   const viewerSites = await (await request('/dashboard/sites?category=active')).text();
   assert.ok(viewerSites.includes('QA-001') && !viewerSites.includes('QA-002'));
   assert.ok((await (await request('/quotations')).text()).includes('hanya dapat diakses Administrator'));
@@ -688,6 +711,10 @@ try {
     'PASS viewer project isolation, export denial and mutation denial',
   );
   await login('smoke-pm');
+  const pmDaily=await form(teamPath,'targetQty',f=>!f.get('id'));
+  assert.ok((await post(teamPath,pmDaily,{...dailyValues,projectId:'smoke-p2'})).text.includes('akses edit ditolak'));
+  assert.ok((await post(teamPath,pmDaily,{...dailyValues,projectId:''})).text.includes('hanya dapat dikelola Admin'));
+  assert.ok((await post(teamPath,pmDaily,{...dailyValues,title:'QA PM own daily task'})).text.includes('Target harian tersimpan'));
   const pmManual = await form('/boq', 'manualRows');
   assert.ok(
     (

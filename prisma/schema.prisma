@@ -117,6 +117,7 @@ model User {
   auditLogs          AuditLog[]
   createdBoqs        Boq[]           @relation("BoqCreatedBy")
   approvedBoqs       Boq[]           @relation("BoqApprovedBy")
+  createdDailyTargets DailyTarget[]
 
   @@index([isActive])
 }
@@ -179,6 +180,7 @@ model Project {
   auditLogs        AuditLog[]
   costEntries      CostEntry[]
   planTasks        PlanTask[]
+  dailyTargets     DailyTarget[]
   quotationId      String?
   quotation        Quotation? @relation(fields: [quotationId], references: [id], onDelete: Restrict)
 
@@ -428,4 +430,31 @@ model AuditLog {
   @@index([projectId, createdAt])
   @@index([userId, createdAt])
   @@index([entityType, entityId])
+}
+
+model DailyTarget {
+  id String @id @default(cuid())
+  requestId String @unique
+  projectId String?
+  createdById String
+  title String
+  pic String
+  scheduledDate DateTime @db.Date
+  originalDate DateTime @db.Date
+  targetQty Decimal @db.Decimal(18, 4)
+  actualQty Decimal @default(0) @db.Decimal(18, 4)
+  unit String
+  priority String @default("MEDIUM")
+  status String @default("NOT_STARTED")
+  notes String @default("")
+  completedAt DateTime?
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([projectId, scheduledDate])
+  @@index([scheduledDate, status])
+  @@index([createdById])
 }

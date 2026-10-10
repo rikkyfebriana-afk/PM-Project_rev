@@ -39,6 +39,7 @@ const navigation = [
   { label: 'Reports', href: '/reports', icon: PackageCheck },
   { label: 'Action Center', href: '/actions', icon: Bell },
   { label: 'Quotation / SPH', href: '/quotations', icon: FileSpreadsheet },
+  { label: 'Target Tim', href: '/team-targets', icon: ClipboardCheck },
 ];
 
 type WorkspaceShellProps = {
