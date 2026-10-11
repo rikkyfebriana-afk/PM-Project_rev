@@ -8,7 +8,8 @@ import { isLocalDemoMode } from '@/lib/auth/session';
 import { dateOnlyInTimeZone } from '@/lib/business-date';
 import { prisma } from '@/lib/prisma';
 import { accessibleProjectWhere } from '@/lib/projects/access';
-import { exactPoMoney } from '@/lib/finance/po-summary';
+import { exactPoMoney, summarizeFinancePo } from '@/lib/finance/po-summary';
+import { getOverview } from './overview';
 import { buildMonthlyPo } from './po-monthly';
 
 const phaseShort: Record<string, string> = {
@@ -146,6 +147,8 @@ export async function getDashboardData(
 
   return {
     demoMode: false,
+    overview: await getOverview(user,today),
+    poSummary: summarizeFinancePo(projects.map(p=>({poValue:p.poValue.toFixed(2),customerPoNumber:p.customerPoNumber,customerPoStatus:p.customerPoStatus}))),
     categoryProjects: {
       active: active.map(p => p.code),
       'on-track': active.filter(p => p.health === 'ON_TRACK').map(p => p.code),

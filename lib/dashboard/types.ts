@@ -14,6 +14,8 @@ export type DashboardProject = {
 };
 
 export type DashboardData = {
+  overview?: Awaited<ReturnType<typeof import('./overview').getOverview>>;
+  poSummary?: ReturnType<typeof import('@/lib/finance/po-summary').summarizeFinancePo>;
   categoryProjects?: Record<import('./categories').DashboardCategory, string[]>;
   monthlyPo?: import('./po-monthly').MonthlyPoData;
   demoMode: boolean;

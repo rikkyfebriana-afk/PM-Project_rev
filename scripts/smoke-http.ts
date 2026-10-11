@@ -120,6 +120,8 @@ try {
   const home = await login('smoke-admin');
   assert.ok(home.includes('QA-001') && home.includes('QA-002'));
   console.log('PASS login and administrator portfolio scope');
+  const overviewHome=await(await request('/dashboard')).text();
+  for(const label of ['Pantauan seluruh modul','PO Customer — jumlah','Target Tim hari ini','Quotation / SPH','Time Plan','Dokumen']) assert.ok(overviewHome.includes(label),`Dashboard summary missing: ${label}`);
   for (const category of ['active','on-track','attention','critical','closed','material-shortage','delayed','fat-punch-list','budget-risk']) {
     assert.ok(home.includes(`/dashboard/sites?category=${category}`));
     const response = await request(`/dashboard/sites?category=${category}`);
@@ -661,6 +663,9 @@ try {
   );
   const adminBudget = await form('/finance', 'budgetValue');
   const viewerHome = await login('smoke-viewer');
+  assert.ok(viewerHome.includes('Pantauan seluruh modul'));
+  assert.ok(!viewerHome.includes('Khusus Administrator · nilai penawaran'));
+  assert.ok(!viewerHome.includes('QA internal private task'));
   const viewerTargets=await(await request(teamPath)).text();
   assert.ok(viewerTargets.includes('QA daily assembly')&&!viewerTargets.includes('QA internal private task'));
   assert.ok((await post(teamPath,dailyReplay,dailyValues)).text.includes('Akses ubah Target Tim ditolak'));
