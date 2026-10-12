@@ -16,10 +16,10 @@ export default async function TeamTargetsPage({searchParams}:{searchParams:Promi
   const end=addDays(start,6);
   const demo=isLocalDemoMode();
   const [projects,tasks]=demo ? [[],[]] : await Promise.all([
-    prisma.project.findMany({where:accessibleProjectWhere(user),orderBy:{code:'asc'},select:{id:true,code:true,name:true,status:true,projectManagerId:true}}),
+    prisma.project.findMany({where:accessibleProjectWhere(user,'TEAM_TARGETS'),orderBy:{code:'asc'},select:{id:true,code:true,name:true,status:true,projectManagerId:true}}),
     prisma.dailyTarget.findMany({where:{
       AND:[
-        {OR:[{project:{is:accessibleProjectWhere(user)}},...(user.role==='ADMIN'?[{projectId:null}]:[])]},
+        {OR:[{project:{is:accessibleProjectWhere(user,'TEAM_TARGETS')}},...(user.role==='ADMIN'?[{projectId:null}]:[])]},
         {OR:[{scheduledDate:{gte:new Date(`${start}T00:00:00Z`),lte:new Date(`${end}T00:00:00Z`)}},{scheduledDate:{lt:new Date(`${start}T00:00:00Z`)},status:{notIn:['DONE','CANCELLED']}},{scheduledDate:new Date(`${today}T00:00:00Z`)}]},
       ],
     },orderBy:[{scheduledDate:'asc'},{createdAt:'asc'}],include:{project:{select:{code:true,name:true,status:true,projectManagerId:true}}}}),

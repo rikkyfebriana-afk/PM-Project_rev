@@ -49,12 +49,13 @@ export async function getCustomerPoData(user: CurrentUser) {
         auditLogs: [],
       }))
     : await prisma.project.findMany({
-        where: accessibleProjectWhere(user),
+        where: accessibleProjectWhere(user,'PO'),
         orderBy: [{ updatedAt: 'desc' }, { code: 'asc' }],
         include: {
           documents: {
             where: {
               category: 'PURCHASE_ORDER',
+              project:{is:accessibleProjectWhere(user,'DOCUMENTS')},
               status: 'READY',
               deletedAt: null,
             },

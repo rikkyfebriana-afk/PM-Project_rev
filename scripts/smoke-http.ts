@@ -662,8 +662,25 @@ try {
     'PASS weighted Time Plan create, exact activation, stale writes, predecessor completion and 60% project rollup',
   );
   const adminBudget = await form('/finance', 'budgetValue');
+  const defaultViewer=await login('smoke-viewer');
+  assert.ok(defaultViewer.includes('QA-001')&&defaultViewer.includes('QA-002'));
+  assert.ok(!defaultViewer.includes('forecastCost')&&!defaultViewer.includes('budgetValue'));
+  assert.ok(!defaultViewer.includes('QA Confidential Contract.pdf'));
+  assert.equal((await request('/api/documents/smoke-private-doc/download')).status,404);
+  assert.ok(!(await(await request('/finance')).text()).includes('QA-001'));
+  assert.ok(!(await(await request('/team-targets')).text()).includes('QA daily assembly'));
+  assert.ok(!(await(await request('/boq')).text()).includes('QA-001'));
+  await login('smoke-admin');
+  const permit=await form('/settings?viewerId=smoke-viewer','scopes',f=>f.get('projectId')==='smoke-p1');
+  for(const scope of ['PROJECT','PO','FINANCE','BOQ','DOCUMENTS','TIME_PLAN','TEAM_TARGETS','OPERATIONS']) permit.append('scopes',scope);
+  assert.ok((await post('/settings?viewerId=smoke-viewer',permit,{})).text.includes('Izin Viewer tersimpan'));
+  assert.ok((await post('/settings?viewerId=smoke-viewer',permit,{})).text.includes('Izin sudah berubah'));
+  const deny=await form('/settings?viewerId=smoke-viewer','scopes',f=>f.get('projectId')==='smoke-p2');
+  assert.ok((await post('/settings?viewerId=smoke-viewer',deny,{})).text.includes('Izin Viewer tersimpan'));
   const viewerHome = await login('smoke-viewer');
-  assert.ok(viewerHome.includes('Pantauan seluruh modul'));
+  assert.ok(viewerHome.includes('Dashboard Viewer'));
+  assert.ok(viewerHome.includes('QA Confidential Contract.pdf'));
+  assert.ok((await post('/settings?viewerId=smoke-viewer',permit,{})).text.includes('Akses pengaturan izin ditolak'));
   assert.ok(!viewerHome.includes('Khusus Administrator · nilai penawaran'));
   assert.ok(!viewerHome.includes('QA internal private task'));
   const viewerTargets=await(await request(teamPath)).text();
@@ -708,13 +725,23 @@ try {
         '/api/reports?type=portfolio&format=xlsx&projectId=smoke-p2',
       )
     ).status,
-    400,
+    403,
   );
   const viewerWrite = await post('/production', production, values);
   assert.ok(viewerWrite.text.includes('Akses simpan tidak tersedia'));
   console.log(
     'PASS viewer project isolation, export denial and mutation denial',
   );
+  await login('smoke-pm');
+  const pmPermission=await form('/settings?viewerId=smoke-viewer','scopes',f=>f.get('projectId')==='smoke-p1');
+  assert.ok((await post('/settings?viewerId=smoke-viewer',pmPermission,{projectId:'smoke-p2'})).text.includes('akses edit ditolak'));
+  pmPermission.set('projectId','smoke-p1');
+  pmPermission.append('scopes','PROJECT');pmPermission.append('scopes','PO');
+  assert.ok((await post('/settings?viewerId=smoke-viewer',pmPermission,{})).text.includes('Izin Viewer tersimpan'));
+  await login('smoke-viewer');
+  assert.ok(!(await(await request('/finance')).text()).includes('QA-001'));
+  assert.equal((await request('/api/documents/smoke-private-doc/download')).status,404);
+  assert.ok(!(await(await request('/team-targets')).text()).includes('QA daily assembly'));
   await login('smoke-pm');
   const pmDaily=await form(teamPath,'targetQty',f=>!f.get('id'));
   assert.ok((await post(teamPath,pmDaily,{...dailyValues,projectId:'smoke-p2'})).text.includes('akses edit ditolak'));

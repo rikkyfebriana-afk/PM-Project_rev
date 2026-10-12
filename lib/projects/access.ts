@@ -2,9 +2,11 @@ import 'server-only';
 
 import type { Prisma } from '@/generated/prisma/client';
 import type { CurrentUser } from '@/lib/auth/session';
+import {defaultViewerScopes,type ViewerScope} from '@/lib/viewer-permissions/model';
 
 export function accessibleProjectWhere(
   user: CurrentUser,
+  scope: ViewerScope = 'PROJECT',
 ): Prisma.ProjectWhereInput {
   if (user.role === 'ADMIN') return { deletedAt: null };
 
@@ -18,10 +20,10 @@ export function accessibleProjectWhere(
     };
   }
 
-  return {
-    deletedAt: null,
-    members: { some: { userId: user.id } },
-  };
+  return {deletedAt:null,OR:[
+    {viewerPermissions:{some:{userId:user.id,scopes:{hasEvery:['PROJECT',scope]}}}},
+    ...(defaultViewerScopes.includes(scope)?[{viewerPermissions:{none:{userId:user.id}}}]:[]),
+  ]};
 }
 
 export function editableProjectWhere(

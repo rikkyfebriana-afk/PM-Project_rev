@@ -8,6 +8,7 @@ export async function GET(request: Request) {
   const user = await getCurrentUser();
   if (!user)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if(user.role==='VIEWER') return NextResponse.json({error:'Ekspor laporan tidak diizinkan untuk Viewer.'},{status:403});
   const parsed = reportSchema.safeParse(
     Object.fromEntries(new URL(request.url).searchParams),
   );

@@ -27,7 +27,7 @@ export async function GET(
       deletedAt: null,
       status: 'READY',
       project: {
-        is: accessibleProjectWhere(user),
+        is: accessibleProjectWhere(user,'DOCUMENTS'),
       },
     },
     select: { bucket: true, objectKey: true, originalName: true },

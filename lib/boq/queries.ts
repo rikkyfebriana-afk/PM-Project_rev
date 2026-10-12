@@ -94,10 +94,10 @@ export async function getBoqWorkspaceData(
     };
   }
 
-  const scopedBoqs = { project: accessibleProjectWhere(user) };
+  const scopedBoqs = { project: accessibleProjectWhere(user,'BOQ') };
   const [projectRows, activeBoqs, recentHistory, versionCount] = await Promise.all([
     prisma.project.findMany({
-      where: accessibleProjectWhere(user),
+      where: accessibleProjectWhere(user,'BOQ'),
       orderBy: { code: 'asc' },
       select: {
         id: true,

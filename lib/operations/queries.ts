@@ -97,7 +97,7 @@ export async function getOperationsData(
       actions,
     };
   }
-  const scope = accessibleProjectWhere(user);
+  const scope = accessibleProjectWhere(user,'OPERATIONS');
   const [projects, rows, actions] = await Promise.all([
     prisma.project.findMany({
       where: scope,
@@ -110,7 +110,7 @@ export async function getOperationsData(
       include: {
         project: { select: { code: true, projectManagerId: true } },
         documents: {
-          where: { status: 'READY', deletedAt: null },
+          where: { status: 'READY', deletedAt: null, project:{is:accessibleProjectWhere(user,'DOCUMENTS')} },
           select: { id: true, originalName: true, category: true },
         },
       },

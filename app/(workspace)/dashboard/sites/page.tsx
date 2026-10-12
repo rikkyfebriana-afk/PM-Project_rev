@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import {ViewerDashboard} from '@/components/dashboard/viewer-dashboard';
 import { notFound } from 'next/navigation';
 import { requireUser } from '@/lib/auth/require-user';
 import { getDashboardData } from '@/lib/dashboard/queries';
@@ -7,6 +8,7 @@ import { dashboardCategories, isDashboardCategory } from '@/lib/dashboard/catego
 export const metadata = { title: 'Daftar site berdasarkan kategori' };
 export default async function DashboardSitesPage({ searchParams }: { searchParams: Promise<{ category?: string | string[] }> }) {
   const user = await requireUser();
+  if(user.role==='VIEWER') return <ViewerDashboard user={user}/>;
   const { category } = await searchParams;
   if (typeof category !== 'string' || !isDashboardCategory(category)) notFound();
   const data = await getDashboardData(user);

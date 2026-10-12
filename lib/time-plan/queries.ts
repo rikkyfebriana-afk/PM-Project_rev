@@ -7,11 +7,12 @@ import { dateOnlyInTimeZone } from '@/lib/business-date';
 import { serializeTask } from './serialize';
 import { summarizeTasks } from './model';
 export async function getTimePlanData(user: CurrentUser) {
-  const register = await getProjectRegisterData(user);
+  const register = await getProjectRegisterData(user,'TIME_PLAN');
+  const allowedPo = user.role==='VIEWER'?new Set((await prisma.project.findMany({where:accessibleProjectWhere(user,'PO'),select:{id:true}})).map(p=>p.id)):null;
   const tasks = register.demoMode
     ? []
     : await prisma.planTask.findMany({
-        where: { archivedAt: null, project: accessibleProjectWhere(user) },
+        where: { archivedAt: null, project: accessibleProjectWhere(user,'TIME_PLAN') },
         orderBy: [{ sortOrder: 'asc' }, { plannedStart: 'asc' }, { id: 'asc' }],
       });
   return {
@@ -29,7 +30,7 @@ export async function getTimePlanData(user: CurrentUser) {
         id: p.id,
         code: p.code,
         name: p.name,
-        customerPoNumber: p.customerPoNumber ?? null,
+        customerPoNumber: !allowedPo||allowedPo.has(p.id)?p.customerPoNumber??null:null,
         clientName: p.clientName,
         plannedStart: p.plannedStart,
         projectManagerName: p.projectManagerName,

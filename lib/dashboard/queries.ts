@@ -42,6 +42,7 @@ function cityFromAddress(address: string | null, fallback: string) {
 export async function getDashboardData(
   user: CurrentUser,
 ): Promise<DashboardData> {
+  if(user.role==='VIEWER') throw new Error('Gunakan dashboard Viewer dengan proyeksi data terbatas.');
   if (isLocalDemoMode()) return demoDashboardData;
 
   const projects = await prisma.project.findMany({

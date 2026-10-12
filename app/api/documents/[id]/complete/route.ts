@@ -14,6 +14,7 @@ export async function POST(
   const user = await getCurrentUser();
   if (!user)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if(user.role==='VIEWER') return NextResponse.json({error:'Viewer hanya baca.'},{status:403});
   if (isLocalDemoMode()) {
     return NextResponse.json(
       { error: 'Upload dinonaktifkan pada mode demo lokal.' },

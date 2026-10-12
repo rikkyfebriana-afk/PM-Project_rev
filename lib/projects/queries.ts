@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { accessibleProjectWhere } from '@/lib/projects/access';
 import { demoProjects } from '@/lib/projects/demo-data';
 import type { ProjectRecord, ProjectRegisterData } from '@/lib/projects/types';
+import type {ViewerScope} from '@/lib/viewer-permissions/model';
 
 function toDateInput(date: Date | null) {
   return date?.toISOString().slice(0, 10) ?? null;
@@ -32,6 +33,7 @@ function metrics(projects: ProjectRecord[]) {
 
 export async function getProjectRegisterData(
   user: CurrentUser,
+  scope: ViewerScope = 'FINANCE',
 ): Promise<ProjectRegisterData> {
   const permissions = {
     canCreate: user.role === 'ADMIN',
@@ -54,7 +56,7 @@ export async function getProjectRegisterData(
 
   const [rows, managers] = await Promise.all([
     prisma.project.findMany({
-      where: accessibleProjectWhere(user),
+      where: accessibleProjectWhere(user,scope),
       orderBy: [{ updatedAt: 'desc' }, { code: 'asc' }],
       include: {
         projectManager: {

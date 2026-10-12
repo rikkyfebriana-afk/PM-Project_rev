@@ -150,7 +150,7 @@ export async function getMaterialWorkspaceData(
   }
 
   const rows = await prisma.material.findMany({
-    where: { project: accessibleProjectWhere(user) },
+    where: { project: accessibleProjectWhere(user,'OPERATIONS') },
     orderBy: [
       { isActive: 'desc' },
       { status: 'asc' },

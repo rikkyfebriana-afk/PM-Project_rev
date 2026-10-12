@@ -10,7 +10,7 @@ export async function getFinanceData(user: CurrentUser) {
   const rows = register.demoMode
     ? []
     : await prisma.costEntry.findMany({
-        where: { project: accessibleProjectWhere(user) },
+        where: { project: accessibleProjectWhere(user,'FINANCE') },
         orderBy: [{ spentAt: 'desc' }, { createdAt: 'desc' }],
         include: { project: { select: { code: true } } },
       });
