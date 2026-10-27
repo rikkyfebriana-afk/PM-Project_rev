@@ -6,6 +6,7 @@ import { hashPassword, verifyPassword } from '@/lib/auth/password';
 import { prisma } from '@/lib/prisma';
 import { lockEditableProject } from '@/lib/operations/transaction';
 import type { MutationState } from '@/lib/operations/validation';
+import { membershipSchema } from '@/lib/settings/membership';
 const password = z
   .string()
   .min(12, 'Password minimal 12 karakter.')
@@ -142,45 +143,49 @@ export async function saveMembership(
       status: 'error',
       message: 'Akses anggota hanya dapat diatur Admin.',
     };
-  const parsed = z
-    .object({
-      projectId: z.string().min(1).max(128),
-      userId: z.string().min(1).max(128),
-      operation: z.enum(['add', 'remove']),
-    })
-    .safeParse(Object.fromEntries(form));
+  const projectIds = form.getAll('projectIds');
+  const parsed = membershipSchema.safeParse({
+    projectIds: projectIds.length ? projectIds : form.getAll('projectId'),
+    userId: form.get('userId'),
+    operation: form.get('operation'),
+    confirmBulkRemove: form.get('confirmBulkRemove') === 'yes',
+  });
   if (!parsed.success)
-    return { status: 'error', message: 'Pilih project dan anggota.' };
+    return { status: 'error', message: 'Pilih proyek dan pengguna. Untuk mencabut beberapa akses, centang konfirmasi pencabutan.' };
   try {
     await prisma.$transaction(async (tx) => {
-      await lockEditableProject(tx, parsed.data.projectId, actor);
+      for (const projectId of parsed.data.projectIds) {
+        await lockEditableProject(tx, projectId, actor);
+      }
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id"=${parsed.data.userId} FOR UPDATE`;
       if (
         !(await tx.user.findFirst({
           where: { id: parsed.data.userId, isActive: true },
         }))
       )
         throw new Error('Akun tidak aktif.');
-      const { projectId, userId, operation } = parsed.data;
-      if (operation === 'add')
-        await tx.projectMember.upsert({
-          where: { projectId_userId: { projectId, userId } },
-          create: { projectId, userId },
-          update: {},
+      const { userId, operation } = parsed.data;
+      for (const projectId of parsed.data.projectIds) {
+        if (operation === 'add')
+          await tx.projectMember.upsert({
+            where: { projectId_userId: { projectId, userId } },
+            create: { projectId, userId },
+            update: {},
+          });
+        else await tx.projectMember.deleteMany({ where: { projectId, userId } });
+        await tx.auditLog.create({
+          data: {
+            userId: actor.id,
+            projectId,
+            action: operation === 'add' ? 'MEMBER_ADDED' : 'MEMBER_REMOVED',
+            entityType: 'ProjectMember',
+            metadata: { memberUserId: userId, selectedProjectCount: parsed.data.projectIds.length },
+          },
         });
-      else await tx.projectMember.deleteMany({ where: { projectId, userId } });
-      await tx.auditLog.create({
-        data: {
-          userId: actor.id,
-          projectId,
-          action: operation === 'add' ? 'MEMBER_ADDED' : 'MEMBER_REMOVED',
-          entityType: 'ProjectMember',
-          metadata: { memberUserId: userId },
-        },
-      });
-    });
-    revalidatePath('/settings');
-    revalidatePath('/projects');
-    return { status: 'success', message: 'Akses anggota project diperbarui.' };
+      }
+    }, { timeout: 30000 });
+    revalidatePath('/', 'layout');
+    return { status: 'success', message: `Akses anggota untuk ${parsed.data.projectIds.length} proyek berhasil ${parsed.data.operation === 'add' ? 'ditambahkan' : 'dicabut'}.` };
   } catch {
     return {
       status: 'error',

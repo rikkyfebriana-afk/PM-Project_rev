@@ -1,5 +1,5 @@
 'use client';
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import {
   createUser,
   setUserActive,
@@ -83,23 +83,37 @@ function ActiveForm({ id, active }: { id: string; active: boolean }) {
 }
 function MemberForm({ data }: { data: SettingsData }) {
   const [state, action, pending] = useActionState(saveMembership, idleState);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [operation, setOperation] = useState('add');
+  const activeUsers = data.users.filter(u => u.isActive);
+  const [userId, setUserId] = useState(activeUsers[0]?.id ?? '');
+  const target = activeUsers.find(u => u.id === userId);
+  const selectedIds = selected.filter(id => data.projects.some(p => p.id === id));
+  const allSelected = data.projects.length > 0 && selectedIds.length === data.projects.length;
   return (
     <form action={action} className="mt-4 space-y-3">
       <fieldset
         disabled={data.demoMode || pending}
         className="grid gap-3 sm:grid-cols-3"
       >
-        <Field label="Project">
-          <select name="projectId" className={inputClass}>
-            {data.projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.code}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <div className="space-y-2 sm:col-span-3">
+          <label className="flex items-center gap-3 border bg-slate-50 p-3 font-semibold">
+            <input type="checkbox" checked={allSelected} disabled={!data.projects.length}
+              onChange={e => setSelected(e.target.checked ? data.projects.map(p => p.id) : [])}/>
+            Pilih semua PO / proyek
+          </label>
+          <p className="text-sm text-slate-600" aria-live="polite">{selectedIds.length} dari {data.projects.length} proyek dipilih. Berlaku untuk proyek yang terdaftar saat ini.</p>
+          <div className="grid max-h-64 gap-2 overflow-y-auto border p-3 sm:grid-cols-2">
+            {data.projects.map(p => <label key={p.id} className="flex min-w-0 items-start gap-2 rounded p-2 hover:bg-slate-50">
+              <input type="checkbox" name="projectIds" value={p.id} checked={selectedIds.includes(p.id)} className="mt-1 shrink-0"
+                onChange={e => setSelected(ids => e.target.checked ? [...ids,p.id] : ids.filter(id => id !== p.id))}/>
+              <span className="min-w-0 break-words text-sm"><strong>{p.code}</strong><span className="block text-slate-600">{p.name}</span></span>
+            </label>)}
+            {!data.projects.length && <p className="text-sm">Belum ada proyek.</p>}
+          </div>
+        </div>
         <Field label="Pengguna">
-          <select name="userId" className={inputClass}>
+          <select name="userId" value={userId} onChange={e => setUserId(e.target.value)} className={inputClass}>
             {data.users
               .filter((u) => u.isActive)
               .map((u) => (
@@ -110,15 +124,21 @@ function MemberForm({ data }: { data: SettingsData }) {
           </select>
         </Field>
         <Field label="Perubahan akses">
-          <select name="operation" className={inputClass}>
+          <select name="operation" value={operation} onChange={e => setOperation(e.target.value)} className={inputClass}>
             <option value="add">Tambahkan akses baca</option>
             <option value="remove">Cabut akses anggota</option>
           </select>
         </Field>
+        {target?.role === 'ADMIN' && <p className="text-sm text-teal-800 sm:col-span-3">Akun ADMIN sudah dapat mengakses semua proyek dan PO. Keanggotaan ini tidak diperlukan untuk membuka atau mencabut akses Admin.</p>}
+        {target?.role === 'VIEWER' && <p className="text-sm text-amber-800 sm:col-span-3">Untuk membuka semua data Proyek, PO, Material dan BoQ bagi Viewer, gunakan Pengaturan Izin Viewer di atas. Keanggotaan tidak mengganti izin Viewer.</p>}
+        {operation === 'remove' && selectedIds.length > 1 && <label className="flex items-start gap-2 text-sm text-red-800 sm:col-span-3">
+          <input key={`${userId}-${selectedIds.join(',')}`} type="checkbox" name="confirmBulkRemove" value="yes" required/>
+          Saya mengonfirmasi pencabutan keanggotaan pengguna ini dari {selectedIds.length} proyek yang dipilih. Hak Admin dan penugasan PM tidak berubah.
+        </label>}
       </fieldset>
       <MutationFeedback state={state} />
-      <button disabled={data.demoMode || pending} className={buttonClass}>
-        Simpan akses
+      <button disabled={data.demoMode || pending || !selectedIds.length || !target} className={buttonClass}>
+        {pending ? 'Menyimpan…' : `Simpan akses (${selectedIds.length} proyek)`}
       </button>
     </form>
   );
