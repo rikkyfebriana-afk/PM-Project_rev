@@ -25,6 +25,7 @@ for (const [id, role] of [
 await db.exec(`INSERT INTO "Project" ("id","code","name","projectManagerId","poValue","budgetValue","forecastCost","actualCost","costOpeningBalance","updatedAt") VALUES ('smoke-p1','QA-001','Acceptance test project','smoke-pm',1000000,800000,750000,10000,10000,now()),('smoke-p2','QA-002','Restricted project',NULL,500000,400000,300000,0,0,now());
   INSERT INTO "ProjectMember" ("id","projectId","userId") VALUES ('smoke-member','smoke-p1','smoke-viewer');`);
 await db.exec(`INSERT INTO "Document" ("id","projectId","uploadedById","category","status","originalName","bucket","objectKey","mimeType","sizeBytes") VALUES ('smoke-private-doc','smoke-p1','smoke-admin','CONTRACT','READY','QA Confidential Contract.pdf','private','smoke-private-doc.pdf','application/pdf',100);`);
+await db.exec(`INSERT INTO "Material" ("id","projectId","code","description","unit","requiredQty","updatedAt") VALUES ('bulk-m1','smoke-p1','BULK-M1','QA bulk material one','UNIT',1,now()),('bulk-m2','smoke-p2','BULK-M2','QA bulk material two','UNIT',1,now());`);
 const server = new PGLiteSocketServer({
   db,
   host: '127.0.0.1',

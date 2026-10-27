@@ -10,6 +10,7 @@ export type CurrentUser = {
   username: string;
   displayName: string;
   role: 'ADMIN' | 'PROJECT_MANAGER' | 'VIEWER';
+  viewerPortfolioAccess?: boolean;
 };
 
 const DEFAULT_TTL_DAYS = 7;
@@ -98,6 +99,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     username: session.user.username,
     displayName: session.user.displayName,
     role: session.user.role,
+    viewerPortfolioAccess: session.user.viewerPortfolioAccess,
   };
 }
 

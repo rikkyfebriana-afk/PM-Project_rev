@@ -20,6 +20,11 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
         await readFile(new URL(`${dir}/migration.sql`, root), 'utf8'),
       );
     }
+    await db.exec(`INSERT INTO "User" ("id","username","normalizedUsername","displayName","passwordHash","updatedAt") VALUES ('viewer-test','viewer-test','viewer-test','Viewer test','unused',now());`);
+    const defaults = await db.query<{viewerPortfolioAccess:boolean;viewerAccessVersion:number}>(`SELECT "viewerPortfolioAccess","viewerAccessVersion" FROM "User" WHERE "id"='viewer-test'`);
+    assert.deepEqual(defaults.rows[0],{viewerPortfolioAccess:false,viewerAccessVersion:0});
+    await db.exec(`INSERT INTO "ViewerPermission" ("userId","projectId","scopes","updatedAt") VALUES ('viewer-test','legacy',ARRAY['PROJECT','MATERIALS','BOQ'],now());`);
+    await assert.rejects(db.exec(`UPDATE "ViewerPermission" SET scopes=ARRAY['PROJECT','INVALID'] WHERE "userId"='viewer-test'`),/check constraint/);
     const opening = await db.query<{ value: string }>(
       `SELECT "costOpeningBalance"::text AS value FROM "Project" WHERE "id"='legacy'`,
     );

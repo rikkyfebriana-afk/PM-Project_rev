@@ -229,8 +229,9 @@ export function SettingsWorkspace({ data }: { data: SettingsData }) {
           <section className={panelClass}>
             <h3 className="font-semibold">Akses anggota project</h3>
             <p className="mt-2 text-xs text-slate-500">
-              Anggota memperoleh akses baca. Hak edit Project Manager mengikuti
-              assignment manager pada Project Register.
+              Untuk akses Viewer sekaligus, gunakan Pengaturan Izin Viewer di atas.
+              Keanggotaan ini tidak membuka izin tambahan Viewer. Hak edit Project
+              Manager mengikuti assignment manager pada Project Register.
             </p>
             <MemberForm data={data} />
             <div className="mt-5 grid gap-3 sm:grid-cols-2">

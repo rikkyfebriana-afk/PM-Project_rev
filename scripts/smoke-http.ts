@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import ExcelJS from 'exceljs';
+import pg from 'pg';
 
 // End-to-end requests against the isolated fixture, using the real server-rendered action forms.
 const base = 'http://localhost:3001';
@@ -742,6 +743,55 @@ try {
   assert.ok(!(await(await request('/finance')).text()).includes('QA-001'));
   assert.equal((await request('/api/documents/smoke-private-doc/download')).status,404);
   assert.ok(!(await(await request('/team-targets')).text()).includes('QA daily assembly'));
+  await login('smoke-pm');
+  const permissionPath='/settings?viewerId=smoke-viewer';
+  const bulkGrant=await form(permissionPath,'permissionSnapshot');
+  assert.ok((await post(permissionPath,bulkGrant,{})).text.includes('1 proyek'));
+  assert.ok((await post(permissionPath,bulkGrant,{})).text.includes('sudah berubah'));
+  await login('smoke-viewer');
+  const bulkMaterials=await(await request('/materials')).text();
+  assert.ok(bulkMaterials.includes('QA bulk material one')&&!bulkMaterials.includes('QA bulk material two'));
+  assert.ok((await(await request('/boq')).text()).includes('QA-001'));
+  assert.ok(!(await(await request('/finance')).text()).includes('QA-001'));
+  assert.ok(!(await(await request('/production')).text()).includes('QA-001'));
+  assert.ok((await post(permissionPath,bulkGrant,{})).text.includes('Akses pengaturan izin ditolak'));
+  await login('smoke-admin');
+  const globalGrant=await form(permissionPath,'portfolioVersion');
+  assert.ok((await post(permissionPath,globalGrant,{userId:'smoke-pm'})).text.includes('Pilih akun Viewer aktif'));
+  globalGrant.set('userId','smoke-viewer');
+  assert.ok((await post(permissionPath,globalGrant,{})).text.includes('BoQ diaktifkan, termasuk proyek baru'));
+  assert.ok((await post(permissionPath,globalGrant,{})).text.includes('Izin sudah berubah'));
+  // Explicitly targets the isolated fixture, never DATABASE_URL from .env.
+  const fixtureClient=new pg.Client({connectionString:'postgresql://postgres:postgres@127.0.0.1:55432/postgres?sslmode=disable'});
+  await fixtureClient.connect();
+  try {
+    await fixtureClient.query(`INSERT INTO "Project" ("id","code","name","updatedAt") VALUES ('smoke-future','QA-FUTURE','Project created after global grant',now());
+      INSERT INTO "Material" ("id","projectId","code","description","unit","requiredQty","updatedAt") VALUES ('bulk-future','smoke-future','BULK-FUTURE','QA future material','UNIT',1,now());`);
+  } finally {await fixtureClient.end();}
+  const globalRevoke=await form(permissionPath,'portfolioVersion');
+  await login('smoke-pm');
+  assert.ok((await post(permissionPath,globalRevoke,{})).text.includes('Hanya Admin'));
+  const globalHome=await login('smoke-viewer');
+  assert.ok(globalHome.includes('QA-001')&&globalHome.includes('QA-002'));
+  assert.ok(globalHome.includes('QA-FUTURE'));
+  const globalMaterials=await(await request('/materials')).text();
+  assert.ok(globalMaterials.includes('QA bulk material one')&&globalMaterials.includes('QA bulk material two'));
+  assert.ok(globalMaterials.includes('QA future material'));
+  assert.ok((await(await request('/customer-po')).text()).includes('QA-002'));
+  assert.ok((await(await request('/boq')).text()).includes('QA-002'));
+  assert.ok((await(await request('/boq')).text()).includes('QA-FUTURE'));
+  assert.ok(!(await(await request('/finance')).text()).includes('QA-002'));
+  assert.ok(!(await(await request('/production')).text()).includes('QA-002'));
+  assert.equal((await request('/api/documents/smoke-private-doc/download')).status,404);
+  assert.ok((await post(permissionPath,globalRevoke,{})).text.includes('Hanya Admin'));
+  assert.ok((await post('/boq',manualReplay,manualValues)).text.includes('Akses input manual BoQ ditolak'));
+  await login('smoke-admin');
+  assert.ok((await post(permissionPath,globalRevoke,{})).text.includes('Akses global dinonaktifkan'));
+  const afterRevoke=await login('smoke-viewer');
+  assert.ok(!afterRevoke.includes('QA-002'));
+  assert.ok(!(await(await request('/materials')).text()).includes('QA bulk material two'));
+  assert.ok(!(await(await request('/boq')).text()).includes('QA-FUTURE'));
+  console.log('PASS mass viewer access, PM ownership, stale grants, admin global toggle, sensitive scope isolation and revocation');
   await login('smoke-pm');
   const pmDaily=await form(teamPath,'targetQty',f=>!f.get('id'));
   assert.ok((await post(teamPath,pmDaily,{...dailyValues,projectId:'smoke-p2'})).text.includes('akses edit ditolak'));

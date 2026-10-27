@@ -105,6 +105,8 @@ model User {
   passwordHash       String
   role               UserRole        @default(VIEWER)
   isActive           Boolean         @default(true)
+  viewerPortfolioAccess Boolean      @default(false)
+  viewerAccessVersion Int            @default(0)
   failedLoginCount   Int             @default(0)
   lockedUntil        DateTime?
   createdAt          DateTime        @default(now())
