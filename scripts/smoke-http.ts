@@ -139,7 +139,7 @@ try {
   assert.ok(!(await login('smoke-pm')).includes('QA-002'));
   await login('smoke-admin');
   membership.append('projectIds','missing-project');
-  assert.ok((await post('/settings',membership,{operation:'add'})).text.includes('Akses belum dapat diperbarui'));
+  assert.ok((await post('/settings',membership,{operation:'add'})).text.includes('Ada proyek yang sudah diarsipkan atau tidak ditemukan'));
   assert.ok(!(await login('smoke-pm')).includes('QA-002'));
   await login('smoke-admin');
   membership.delete('projectIds');
@@ -890,6 +890,28 @@ try {
   });
   assert.ok(pmBudget.text.includes('hanya untuk Admin'));
   console.log('PASS project manager cannot alter commercial baseline');
+  await login('smoke-admin');
+  // Large portfolio fixture is isolated from production credentials and data.
+  const batchDb=new pg.Client({connectionString:'postgresql://postgres:postgres@127.0.0.1:55432/postgres?sslmode=disable'});
+  await batchDb.connect();
+  try {
+    const batchIds=Array.from({length:100},(_,i)=>`smoke-batch-${i}`);
+    await batchDb.query(`INSERT INTO "Project" ("id","code","name","updatedAt") SELECT id, upper(id), 'Batch test project',now() FROM unnest($1::text[]) AS selected(id)`,[batchIds]);
+    const batchForm=await form('/settings','projectIds');
+    for(const id of batchIds) batchForm.append('projectIds',id);
+    const started=Date.now();
+    assert.ok((await post('/settings',batchForm,{userId:'smoke-pm',operation:'add'})).text.includes('100 proyek berhasil ditambahkan'));
+    assert.ok((await post('/settings',batchForm,{})).text.includes('100 proyek berhasil ditambahkan'));
+    const count=async(userId:string)=>Number((await batchDb.query(`SELECT count(*) AS count FROM "ProjectMember" WHERE "userId"=$1 AND "projectId"=ANY($2::text[])`,[userId,batchIds])).rows[0].count);
+    assert.equal(await count('smoke-pm'),100);
+    assert.ok((await post('/settings',batchForm,{userId:'smoke-admin'})).text.includes('Akun ADMIN sudah memiliki akses semua proyek dan PO'));
+    assert.equal(await count('smoke-admin'),0);
+    assert.ok((await post('/settings',batchForm,{userId:'smoke-pm',operation:'remove',confirmBulkRemove:'yes'})).text.includes('100 proyek berhasil dicabut'));
+    assert.equal(await count('smoke-pm'),0);
+    const audit=await batchDb.query(`SELECT count(*) AS count FROM "AuditLog" WHERE "projectId"=ANY($1::text[]) AND "entityType"='ProjectMember'`,[batchIds]);
+    assert.equal(Number(audit.rows[0].count),300);
+    console.log(`PASS 100-project batch grant/retry/revoke, complete audit log, and ADMIN no-op (${Date.now()-started}ms local)`);
+  } finally {await batchDb.end();}
   console.log('All HTTP acceptance checks passed.');
 } catch (error) {
   console.error(error instanceof Error ? error.stack : error);

@@ -4,9 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentUser, isLocalDemoMode } from '@/lib/auth/session';
 import { hashPassword, verifyPassword } from '@/lib/auth/password';
 import { prisma } from '@/lib/prisma';
-import { lockEditableProject } from '@/lib/operations/transaction';
 import type { MutationState } from '@/lib/operations/validation';
-import { membershipSchema } from '@/lib/settings/membership';
+import { membershipSchema, membershipErrorCode, membershipErrorMessage } from '@/lib/settings/membership';
+import { applyMembershipBatch } from '@/lib/settings/membership-transaction';
 const password = z
   .string()
   .min(12, 'Password minimal 12 karakter.')
@@ -153,43 +153,15 @@ export async function saveMembership(
   if (!parsed.success)
     return { status: 'error', message: 'Pilih proyek dan pengguna. Untuk mencabut beberapa akses, centang konfirmasi pencabutan.' };
   try {
-    await prisma.$transaction(async (tx) => {
-      for (const projectId of parsed.data.projectIds) {
-        await lockEditableProject(tx, projectId, actor);
-      }
-      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id"=${parsed.data.userId} FOR UPDATE`;
-      if (
-        !(await tx.user.findFirst({
-          where: { id: parsed.data.userId, isActive: true },
-        }))
-      )
-        throw new Error('Akun tidak aktif.');
-      const { userId, operation } = parsed.data;
-      for (const projectId of parsed.data.projectIds) {
-        if (operation === 'add')
-          await tx.projectMember.upsert({
-            where: { projectId_userId: { projectId, userId } },
-            create: { projectId, userId },
-            update: {},
-          });
-        else await tx.projectMember.deleteMany({ where: { projectId, userId } });
-        await tx.auditLog.create({
-          data: {
-            userId: actor.id,
-            projectId,
-            action: operation === 'add' ? 'MEMBER_ADDED' : 'MEMBER_REMOVED',
-            entityType: 'ProjectMember',
-            metadata: { memberUserId: userId, selectedProjectCount: parsed.data.projectIds.length },
-          },
-        });
-      }
-    }, { timeout: 30000 });
+    const result=await prisma.$transaction(tx=>applyMembershipBatch(tx,parsed.data,actor.id), { timeout: 30000 });
+    if(result==='ADMIN_UNCHANGED') return {status:'success',message:'Akun ADMIN sudah memiliki akses semua proyek dan PO. Tidak perlu menambahkan keanggotaan; tidak ada akses yang diubah.'};
     revalidatePath('/', 'layout');
     return { status: 'success', message: `Akses anggota untuk ${parsed.data.projectIds.length} proyek berhasil ${parsed.data.operation === 'add' ? 'ditambahkan' : 'dicabut'}.` };
-  } catch {
+  } catch (error) {
+    console.error('Membership update failed', {code:membershipErrorCode(error),projectCount:parsed.data.projectIds.length});
     return {
       status: 'error',
-      message: 'Akses belum dapat diperbarui. Pastikan akun dan project aktif.',
+      message: membershipErrorMessage(error),
     };
   }
 }
