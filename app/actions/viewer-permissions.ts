@@ -1,6 +1,7 @@
 'use server';
 import {revalidatePath} from 'next/cache';
 import {getCurrentUser,isLocalDemoMode} from '@/lib/auth/session';
+import {hasFullAccess} from '@/lib/auth/roles';
 import {prisma} from '@/lib/prisma';
 import {lockEditableProject} from '@/lib/operations/transaction';
 import {validateViewerScopes,addPortfolioScopes} from '@/lib/viewer-permissions/model';
@@ -31,7 +32,7 @@ export async function saveViewerPermission(_:MutationState,form:FormData):Promis
 
 export async function saveViewerPortfolioAccess(_:MutationState,form:FormData):Promise<MutationState> {
  const actor=await getCurrentUser();
- if(!actor||actor.role!=='ADMIN'||isLocalDemoMode()) return {status:'error',message:'Hanya Admin yang dapat mengatur semua proyek termasuk proyek baru.'};
+ if(!actor||!hasFullAccess(actor.role)||isLocalDemoMode()) return {status:'error',message:'Hanya Admin atau Project Manager yang dapat mengatur semua proyek termasuk proyek baru.'};
  const userId=String(form.get('userId')??''),version=Number(form.get('portfolioVersion'));
  const enabled=form.get('enabled');
  if(!userId||!Number.isSafeInteger(version)||version<0||!['true','false'].includes(String(enabled))) return {status:'error',message:'Data izin tidak valid.'};
@@ -51,7 +52,7 @@ export async function saveViewerPortfolioAccess(_:MutationState,form:FormData):P
 
 export async function grantViewerCurrentProjects(_:MutationState,form:FormData):Promise<MutationState> {
  const actor=await getCurrentUser();
- if(!actor||!['ADMIN','PROJECT_MANAGER'].includes(actor.role)||isLocalDemoMode()) return {status:'error',message:'Akses pengaturan izin ditolak.'};
+ if(!actor||!hasFullAccess(actor.role)||isLocalDemoMode()) return {status:'error',message:'Akses pengaturan izin ditolak.'};
  const userId=String(form.get('userId')??''),snapshot=String(form.get('permissionSnapshot')??'');
  if(!userId||!snapshot) return {status:'error',message:'Data izin tidak valid.'};
  try {

@@ -1,4 +1,5 @@
 import 'server-only';
+import { hasFullAccess } from '@/lib/auth/roles';
 import type { CurrentUser } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
 import { accessibleProjectWhere } from '@/lib/projects/access';
@@ -17,7 +18,7 @@ export async function getTimePlanData(user: CurrentUser) {
       });
   return {
     demoMode: register.demoMode,
-    canActivate: user.role === 'ADMIN',
+    canActivate: hasFullAccess(user.role),
     today: dateOnlyInTimeZone(
       new Date(),
       process.env.APP_TIME_ZONE || 'Asia/Jakarta',

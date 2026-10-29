@@ -6,7 +6,7 @@ Subtotal dan total dihitung otomatis. Quantity maksimal 4 desimal, harga 2 desim
 
 Centang konfirmasi lalu pilih **Simpan BoQ manual sebagai Draft**. Daftar harus berisi seluruh item revisi, bukan hanya tambahan. Draft sebelumnya menjadi Superseded; approved baseline tidak berubah. Riwayat tetap disimpan. Data identik dengan revisi manual atau impor terdahulu tidak membuat duplikat. Form revisi yang tertinggal ditolak saat versi baru sudah dibuat.
 
-Admin dan PM penanggung jawab dapat membuat Draft; Viewer hanya membaca. Proyek Closed/Cancelled harus dibuka kembali sebelum input manual. Mode demo hanya baca. Approval tetap melalui tombol **Approve baseline** di riwayat revisi, hanya oleh Admin; alur sinkronisasi material yang ada tetap dipakai.
+Admin dan PM dapat membuat Draft untuk semua proyek; Viewer hanya membaca sesuai izin. Proyek Closed/Cancelled harus dibuka kembali sebelum input manual. Mode demo hanya baca. Approval melalui tombol **Approve baseline** di riwayat revisi tersedia bagi Admin dan PM; alur sinkronisasi material yang ada tetap dipakai.
 
 Input yang belum disimpan hanya berada di form browser. Memuat ulang atau berpindah proyek mengosongkannya. Fitur ini tidak otomatis menyalin isi baseline lama ke form. Tidak dibuat dokumen file fiktif: sumber revisi ditandai `Input manual web`, tanpa sourceDocumentId, dengan audit `BOQ_MANUAL_CREATED`.
 

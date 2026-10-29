@@ -67,15 +67,15 @@ Halaman `/boq` menyediakan [template Excel](public/templates/boq-import-template
 1. Pilih project, lalu unggah file `.xlsx` atau `.csv` (maksimum 5 MB dan 1.000 item). File dibaca di browser untuk memilih sheet, memetakan kolom, dan menampilkan error per baris sebelum dikirim.
 2. Saat import dikonfirmasi, file asli diunggah langsung ke bucket private Supabase melalui signed URL. Server mengunduh dokumen berstatus `READY`, membaca sheet terpilih, lalu memvalidasi ulang data sebelum menyimpan revisi `DRAFT`. Data preview dari browser tidak dipercaya sebagai sumber akhir.
 3. Import identik pada project yang sama dideteksi dari hash isi BoQ dan tidak membuat revisi duplikat. Revisi Draft sebelumnya menjadi `SUPERSEDED`; baseline `APPROVED` yang sedang berlaku tidak berubah sampai ada approval baru.
-4. Hanya `ADMIN` yang dapat menyetujui Draft. Approval menjadikan revisi tersebut baseline `APPROVED`, menggantikan baseline lama, dan menyinkronkan item bertipe `MATERIAL` ke Material Register dalam satu transaksi.
+4. `ADMIN` dan `PROJECT_MANAGER` dapat menyetujui Draft. Approval menjadikan revisi tersebut baseline `APPROVED`, menggantikan baseline lama, dan menyinkronkan item bertipe `MATERIAL` ke Material Register dalam satu transaksi.
 
 Kolom wajib: `Item No`, `Item Type`, `Description`, `Unit`, `Quantity`, dan `Unit Price`. `Item Code` wajib dan unik untuk item `MATERIAL`; `Item Type` harus `MATERIAL`, `SERVICE`, atau `OTHER`. `Quantity` harus positif (maksimum empat desimal), sedangkan `Unit Price` non-negatif (maksimum dua desimal). Header boleh berada dalam 30 baris pertama. Formula pada kolom input, baris/kolom tersembunyi, dan merged cell pada area data ditolak. `Line Total` dihitung ulang oleh server dari kuantitas dan harga satuan, bukan dipercaya dari file.
 
-`ADMIN` dapat mengimpor ke seluruh project; `PROJECT_MANAGER` hanya ke project yang resmi dikelolanya; `VIEWER` hanya dapat membaca. Mode demo mengizinkan preview tetapi tidak menyimpan file, revisi, atau approval. File sumber BoQ mengikuti otorisasi dokumen project dan tidak dibuka sebagai URL publik.
+`ADMIN` dan `PROJECT_MANAGER` dapat mengimpor ke seluruh project; `VIEWER` hanya dapat membaca sesuai izin. Mode demo mengizinkan preview tetapi tidak menyimpan file, revisi, atau approval. File sumber BoQ mengikuti otorisasi dokumen project dan tidak dibuka sebagai URL publik.
 
 ## Material Register
 
-Halaman `/materials` menampilkan kebutuhan material dari baseline BoQ yang telah disetujui, kuantitas ordered/received/installed, supplier, nomor PO, tanggal kebutuhan/ETA, status, dan indikator shortage/late ETA. Admin dan Project Manager resmi dapat memperbarui progress material pada project yang berhak mereka edit; Viewer hanya membaca. Perubahan memakai validasi server, optimistic locking, dan audit log.
+Halaman `/materials` menampilkan kebutuhan material dari baseline BoQ yang telah disetujui, kuantitas ordered/received/installed, supplier, nomor PO, tanggal kebutuhan/ETA, status, dan indikator shortage/late ETA. Admin dan Project Manager dapat memperbarui progress material pada seluruh proyek; Viewer membaca sesuai izin. Perubahan memakai validasi server, optimistic locking, dan audit log.
 
 Saat baseline baru disetujui, material dicocokkan berdasarkan kode yang dinormalisasi. Kebutuhan, deskripsi, satuan, dan tautan BoQ diperbarui; data operasional seperti supplier, PO, dan pergerakan kuantitas yang sudah tercatat dipertahankan. Item yang hilang dari baseline baru dinonaktifkan, bukan dihapus. Approval ditolak bila satuan material yang sudah bergerak berubah atau kebutuhan baru lebih kecil daripada kuantitas yang sudah diterima/terpasang; rekonsiliasi harus dilakukan terlebih dahulu.
 
@@ -95,23 +95,23 @@ Keempat halaman operasional kini memakai milestone PostgreSQL: buat paket pekerj
 
 Finance menyediakan ledger biaya per project, kategori, tanggal transaksi, nomor invoice/referensi, serta uraian. Posting biaya memperbarui actual cost dalam transaksi yang sama. Nominal memakai Decimal; request duplikat tidak menggandakan biaya. Saldo actual sebelum migrasi dipertahankan sebagai opening balance. Setelah ledger tersedia, actual cost tidak boleh ditimpa melalui Project Register.
 
-Admin dapat memperbarui PO/budget/forecast dan membatalkan biaya dengan alasan. Pembatalan tetap disimpan dalam ledger serta audit log. Forecast di bawah actual ditandai untuk ditinjau.
+Admin dan Project Manager dapat memperbarui PO/budget/forecast dan membatalkan biaya dengan alasan. Pembatalan tetap disimpan dalam ledger serta audit log. Forecast di bawah actual ditandai untuk ditinjau.
 
 Reports menghasilkan PDF dan Excel di server untuk portfolio, material aktif, milestone, dan ledger. Filter tanggal milestone mengikuti planned finish; ledger mengikuti spent date. Portfolio/material adalah snapshot saat ekspor. Batas 5.000 baris per ekspor. Nilai Excel yang melampaui presisi 15 digit disimpan sebagai teks agar nominal tidak berubah. PDF memakai font Latin; karakter di luar cakupan font ditandai dan tersedia utuh di Excel.
 
-Settings menyediakan pembuatan akun, aktivasi/nonaktivasi, membership project, perubahan password sendiri, dan 50 audit log terakhir. Nonaktivasi akun dan perubahan password mencabut sesi. Membership memberikan akses baca; hak edit PM mengikuti assignment manager di Project Register. Menu mobile menyediakan akses ke seluruh modul.
+Settings menyediakan pembuatan akun, aktivasi/nonaktivasi, membership project, pengaturan izin Viewer, perubahan password sendiri, dan 50 audit log terakhir. Admin dan Project Manager dapat mengelola Settings. Nonaktivasi akun dan perubahan password mencabut sesi. Menu mobile menyediakan akses ke seluruh modul.
 
 ## Database dan akses
 
 Schema berada di `prisma/schema.prisma`. Fondasi akses menyediakan tiga role:
 
 - `ADMIN`: seluruh project dan pengaturan sistem.
-- `PROJECT_MANAGER`: dapat membaca project yang dikelola atau diikuti, tetapi hanya dapat mengubah operational control pada project yang resmi dikelolanya.
-- `VIEWER`: hanya project tempat ia menjadi anggota.
+- `PROJECT_MANAGER`: akses penuh yang sama dengan Admin pada semua proyek dan modul, termasuk proyek baru, komersial, dokumen, laporan, pengelolaan akun dan izin Viewer.
+- `VIEWER`: hanya baca; proyek/PO terlihat secara default dan modul sensitif mengikuti izin per akun/per proyek.
 
-Hanya `ADMIN` yang dapat membuat project, mengubah master/finance/assignment, dan mengarsipkan project. Upload dokumen hanya tersedia untuk Admin atau Project Manager resmi; Viewer tetap read-only.
+`ADMIN` dan `PROJECT_MANAGER` dapat membuat project, mengubah master/finance/assignment, mengarsipkan project, dan mengunggah dokumen. Viewer tetap read-only. Self-deactivation dan penonaktifan Admin terakhir tetap ditolak.
 
-Assignment `projectManagerId` dan `ProjectMember` sengaja dipisahkan. Mengganti manager langsung mencabut akses yang berasal dari assignment lama; akses tim yang eksplisit tetap dikelola melalui membership tersendiri.
+Assignment `projectManagerId` mencatat penanggung jawab, bukan pembatas akses bagi Admin/PM. Kedua role otomatis memiliki akses penuh tanpa membership. Pembatasan Viewer tetap melalui izin Viewer. Kebijakan peran terpusat di `lib/auth/roles.ts`.
 
 Nilai uang dan kuantitas menggunakan tipe `Decimal`, bukan floating point. Dokumen tersimpan sebagai object private; database hanya menyimpan metadata dan object key. Endpoint download menghasilkan signed URL berumur 60 detik setelah otorisasi project diperiksa.
 

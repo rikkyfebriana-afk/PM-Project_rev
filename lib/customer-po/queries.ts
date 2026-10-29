@@ -1,4 +1,5 @@
 import 'server-only';
+import { hasFullAccess } from '@/lib/auth/roles';
 import { Prisma } from '@/generated/prisma/client';
 import type { CurrentUser } from '@/lib/auth/session';
 import { isLocalDemoMode } from '@/lib/auth/session';
@@ -105,7 +106,7 @@ export async function getCustomerPoData(user: CurrentUser) {
   return {
     projects,
     demoMode,
-    canEdit: user.role === 'ADMIN',
+    canEdit: hasFullAccess(user.role),
     totals: {
       registered: projects.filter((p) => p.customerPoNumber).length,
       missing: projects.filter((p) => !p.customerPoNumber).length,

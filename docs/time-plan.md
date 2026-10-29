@@ -20,8 +20,8 @@ Progres tahapan adalah rata-rata tertimbang pekerjaan dalam tahapan itu. Bobot t
 
 ## Aturan perubahan
 
-- Admin dan PM penanggung jawab proyek dapat mengubah pekerjaan; anggota PM lain dan Viewer hanya membaca sesuai akses proyek.
-- Hanya Admin dapat mengaktifkan/nonaktifkan sumber progres.
+- Admin dan PM dapat mengubah pekerjaan pada semua proyek; Viewer hanya membaca sesuai izin.
+- Admin dan PM dapat mengaktifkan/nonaktifkan sumber progres.
 - Untuk membagi ulang bobot atau mengarsipkan pekerjaan, nonaktifkan dahulu. Progres proyek terakhir dipertahankan hingga aktivasi berikutnya; saat Draft, progres manual proyek tetap tersedia.
 - Saat aktif, total bobot harus selalu 100%, progres manual pada Projects ditolak, dan update pekerjaan mengubah progres proyek dalam satu transaksi.
 - Proyek Closed/Cancelled harus dibuka kembali sebelum pekerjaan diubah. Aktivasi tidak otomatis menutup proyek, mengubah status, milestone FAT/BAST, atau target selesai proyek.

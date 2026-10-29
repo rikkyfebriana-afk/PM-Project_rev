@@ -483,7 +483,7 @@ export function BoqImportWorkspace({
                 <div className="flex items-start gap-2 border border-[#d9e0e4] bg-[#f5f7f8] px-4 py-3 text-xs leading-5 text-[#62737e]">
                   <LockKeyhole className="mt-0.5 size-4 shrink-0" /> Anda dapat
                   melihat riwayat proyek ini, tetapi hanya Admin atau Project
-                  Manager resmi yang dapat mengimpor revisi.
+                  Manager yang dapat mengimpor revisi.
                 </div>
               )}
 

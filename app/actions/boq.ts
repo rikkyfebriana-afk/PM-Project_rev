@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { Prisma } from '@/generated/prisma/client';
 import { getCurrentUser, isLocalDemoMode } from '@/lib/auth/session';
+import { hasFullAccess } from '@/lib/auth/roles';
 import type {
   BoqApprovalActionState,
   BoqApprovalPayload,
@@ -93,7 +94,7 @@ export async function commitBoqImportAction(
       category: 'BOQ',
       status: 'READY',
       deletedAt: null,
-      ...(user.role === 'ADMIN' ? {} : { uploadedById: user.id }),
+      ...(hasFullAccess(user.role) ? {} : { uploadedById: user.id }),
       project: { is: editableProjectWhere(user) },
     },
     select: {
@@ -236,7 +237,7 @@ export async function commitBoqImportAction(
             category: 'BOQ',
             status: 'READY',
             deletedAt: null,
-            ...(user.role === 'ADMIN' ? {} : { uploadedById: user.id }),
+            ...(hasFullAccess(user.role) ? {} : { uploadedById: user.id }),
           },
           select: { id: true },
         });
@@ -389,10 +390,10 @@ export async function approveBoqRevisionAction(
       message: 'Mode demo hanya baca. Hubungkan PostgreSQL untuk approval.',
     };
   }
-  if (user.role !== 'ADMIN') {
+  if (!hasFullAccess(user.role)) {
     return {
       status: 'error',
-      message: 'Hanya Admin yang dapat menyetujui baseline BoQ.',
+      message: 'Hanya Admin atau Project Manager yang dapat menyetujui baseline BoQ.',
     };
   }
 

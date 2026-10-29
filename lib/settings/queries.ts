@@ -1,11 +1,12 @@
 import 'server-only';
+import { hasFullAccess } from '@/lib/auth/roles';
 import type { CurrentUser } from '@/lib/auth/session';
 import { isLocalDemoMode } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
 export async function getSettingsData(user: CurrentUser) {
   const demoMode = isLocalDemoMode();
   const users =
-    demoMode || user.role !== 'ADMIN'
+    demoMode || !hasFullAccess(user.role)
       ? []
       : await prisma.user.findMany({
           orderBy: { displayName: 'asc' },
@@ -18,7 +19,7 @@ export async function getSettingsData(user: CurrentUser) {
           },
         });
   const projects =
-    demoMode || user.role !== 'ADMIN'
+    demoMode || !hasFullAccess(user.role)
       ? []
       : await prisma.project.findMany({
           where: { deletedAt: null },
@@ -33,7 +34,7 @@ export async function getSettingsData(user: CurrentUser) {
           },
         });
   const logs =
-    demoMode || user.role !== 'ADMIN'
+    demoMode || !hasFullAccess(user.role)
       ? []
       : await prisma.auditLog.findMany({
           orderBy: { createdAt: 'desc' },
@@ -49,7 +50,7 @@ export async function getSettingsData(user: CurrentUser) {
         });
   return {
     demoMode,
-    isAdmin: user.role === 'ADMIN',
+    isAdmin: hasFullAccess(user.role),
     currentUserId: user.id,
     users,
     projects,

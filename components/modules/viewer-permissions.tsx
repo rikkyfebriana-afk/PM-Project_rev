@@ -24,7 +24,7 @@ export function ViewerPortfolioForm({userId,enabled,version}:{userId:string;enab
 export function ViewerBulkForm({userId,snapshot,count}:{userId:string;snapshot:string;count:number}) {
  const [state,action,pending]=useActionState(grantViewerCurrentProjects,idleState);
  return <form action={action} className="space-y-3 rounded border bg-slate-50 p-4">
-  <h3 className="font-semibold">Terapkan sekaligus ke {count} proyek yang dikelola</h3>
+  <h3 className="font-semibold">Terapkan sekaligus ke {count} proyek</h3>
   <p className="text-sm">Tambahkan akses baca Proyek, PO Customer, Material dan BoQ. Izin lainnya tetap. Hanya proyek saat ini; proyek baru perlu diterapkan kembali. Pengaturan per proyek tetap bisa diubah setelahnya.</p>
   <input type="hidden" name="userId" value={userId}/><input type="hidden" name="permissionSnapshot" value={snapshot}/>
   <button disabled={pending||count===0} className={buttonClass}>{pending?'Menyimpan…':'Berikan akses sekaligus'}</button><MutationFeedback state={state}/>

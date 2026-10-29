@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getCurrentUser, isLocalDemoMode } from '@/lib/auth/session';
+import { hasFullAccess } from '@/lib/auth/roles';
 import { prisma } from '@/lib/prisma';
 import { accessibleProjectWhere } from '@/lib/projects/access';
 import { getSupabaseAdmin } from '@/lib/storage/supabase-admin';
@@ -27,7 +28,7 @@ export async function POST(
     where: {
       id,
       deletedAt: null,
-      ...(user.role === 'ADMIN' ? {} : { uploadedById: user.id }),
+      ...(hasFullAccess(user.role) ? {} : { uploadedById: user.id }),
       project: {
         is: accessibleProjectWhere(user),
       },

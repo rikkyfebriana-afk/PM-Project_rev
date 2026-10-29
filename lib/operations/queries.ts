@@ -1,4 +1,5 @@
 import 'server-only';
+import { hasFullAccess } from '@/lib/auth/roles';
 import type { CurrentUser } from '@/lib/auth/session';
 import { isLocalDemoMode } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
@@ -124,14 +125,12 @@ export async function getOperationsData(
       include: { project: { select: { code: true, projectManagerId: true } } },
     }),
   ]);
-  const editable = (manager: string | null) =>
-    user.role === 'ADMIN' ||
-    (user.role === 'PROJECT_MANAGER' && manager === user.id);
+  const editable = hasFullAccess(user.role);
   return {
     demoMode: false,
     projects: projects.map((p) => ({
       ...p,
-      canEdit: editable(p.projectManagerId),
+      canEdit: editable,
     })),
     operations: rows.map((r) => ({
       id: r.id,
@@ -147,7 +146,7 @@ export async function getOperationsData(
       responsible: r.responsible ?? '',
       updatedAt: r.updatedAt.toISOString(),
       documents: r.documents,
-      canEdit: editable(r.project.projectManagerId),
+      canEdit: editable,
     })),
     actions: actions.map((r) => ({
       id: r.id,
@@ -160,7 +159,7 @@ export async function getOperationsData(
       status: r.status,
       dueAt: r.dueAt?.toISOString().slice(0, 10) ?? '',
       updatedAt: r.updatedAt.toISOString(),
-      canEdit: editable(r.project.projectManagerId),
+      canEdit: editable,
     })),
   };
 }

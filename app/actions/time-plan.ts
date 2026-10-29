@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getCurrentUser, isLocalDemoMode } from '@/lib/auth/session';
+import { hasFullAccess } from '@/lib/auth/roles';
 import { prisma } from '@/lib/prisma';
 import { lockEditableProject } from '@/lib/operations/transaction';
 import type { MutationState } from '@/lib/operations/validation';
@@ -195,11 +196,11 @@ export async function setPlanActive(
   form: FormData,
 ): Promise<MutationState> {
   const user = await getCurrentUser();
-  if (!user || user.role !== 'ADMIN' || isLocalDemoMode())
+  if (!user || !hasFullAccess(user.role) || isLocalDemoMode())
     return {
       status: 'error',
       message:
-        'Hanya administrator dapat mengaktifkan atau menonaktifkan acuan progres.',
+        'Hanya Admin atau Project Manager dapat mengaktifkan atau menonaktifkan acuan progres.',
     };
   const parsed = identity
     .extend({ active: z.enum(['true', 'false']) })

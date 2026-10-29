@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { readFile } from 'node:fs/promises';
 import ExcelJS from 'exceljs';
 import pg from 'pg';
 
@@ -94,6 +95,39 @@ async function login(username: string) {
   return home.text();
 }
 
+async function fixtureMembershipCount(userId:string,projectIds:string[]) {
+  const client=new pg.Client({connectionString:'postgresql://postgres:postgres@127.0.0.1:55432/postgres?sslmode=disable'});
+  await client.connect();
+  try{return Number((await client.query(`SELECT count(*) AS count FROM "ProjectMember" WHERE "userId"=$1 AND "projectId"=ANY($2::text[])`,[userId,projectIds])).rows[0].count);}
+  finally{await client.end();}
+}
+
+// Project editor forms mount on click. Reuse the generated action-state encoding
+// with the real compiled action ID to exercise the same server boundary over HTTP.
+async function compiledActionId(exportedName:string,filename:string) {
+  const manifest=JSON.parse(await readFile(new URL('../.next/server/server-reference-manifest.json',import.meta.url),'utf8'));
+  const action=Object.entries(manifest.node).find(([,value])=>(value as {exportedName?:string;filename?:string}).exportedName===exportedName&&(value as {filename?:string}).filename===filename);
+  assert.ok(action,`Compiled action ${exportedName} is missing`);
+  return action[0];
+}
+async function projectActionForm(exportedName:string) {
+  const actionId=await compiledActionId(exportedName,'app/actions/projects.ts');
+  const body=await form('/settings','projectIds');
+  let replaced=false;
+  for(const [key,value] of body){
+    if(typeof value!=='string'||!key.startsWith('$ACTION_'))continue;
+    try{const encoded=JSON.parse(value);if(encoded&&typeof encoded.id==='string'&&'bound' in encoded){encoded.id=actionId;body.set(key,JSON.stringify(encoded));replaced=true;}}catch{}
+  }
+  assert.ok(replaced,'Action-state metadata was not found');
+  return body;
+}
+async function approveViaHttp(input:{boqId:string;expectedApprovedBoqId:string|null}) {
+  const id=await compiledActionId('approveBoqRevisionAction','app/actions/boq.ts');
+  const response=await request('/boq',{method:'POST',headers:{'Next-Action':id,'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify([input])});
+  assert.equal(response.status,200);
+  return response.text();
+}
+
 try {
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(
@@ -124,27 +158,26 @@ try {
   const membership=await form('/settings','projectIds');
   membership.append('projectIds','smoke-p1');
   membership.append('projectIds','smoke-p2');
-  assert.ok((await post('/settings',membership,{userId:'smoke-pm',operation:'add'})).text.includes('2 proyek berhasil ditambahkan'));
+  assert.ok((await post('/settings',membership,{userId:'smoke-member-target',operation:'add'})).text.includes('2 proyek berhasil ditambahkan'));
   assert.ok((await post('/settings',membership,{})).text.includes('2 proyek berhasil ditambahkan'));
-  const memberPmHome=await login('smoke-pm');
-  assert.ok(memberPmHome.includes('QA-002'));
-  assert.ok((await post('/settings',membership,{})).text.includes('Akses anggota hanya dapat diatur Admin'));
+  assert.equal(await fixtureMembershipCount('smoke-member-target',['smoke-p1','smoke-p2']),2);
+  const fullPmHome=await login('smoke-pm');
+  assert.ok(fullPmHome.includes('QA-001')&&fullPmHome.includes('QA-002'));
+  assert.ok((await post('/settings',membership,{})).text.includes('2 proyek berhasil ditambahkan'));
   await login('smoke-viewer');
   assert.ok((await post('/settings',membership,{})).text.includes('Akses anggota hanya dapat diatur Admin'));
-  await login('smoke-admin');
+  await login('smoke-pm');
   assert.ok((await post('/settings',membership,{operation:'remove'})).text.includes('centang konfirmasi pencabutan'));
-  assert.ok((await login('smoke-pm')).includes('QA-002'));
-  await login('smoke-admin');
+  assert.equal(await fixtureMembershipCount('smoke-member-target',['smoke-p1','smoke-p2']),2);
   assert.ok((await post('/settings',membership,{confirmBulkRemove:'yes'})).text.includes('2 proyek berhasil dicabut'));
-  assert.ok(!(await login('smoke-pm')).includes('QA-002'));
-  await login('smoke-admin');
+  assert.equal(await fixtureMembershipCount('smoke-member-target',['smoke-p1','smoke-p2']),0);
   membership.append('projectIds','missing-project');
   assert.ok((await post('/settings',membership,{operation:'add'})).text.includes('Ada proyek yang sudah diarsipkan atau tidak ditemukan'));
-  assert.ok(!(await login('smoke-pm')).includes('QA-002'));
-  await login('smoke-admin');
+  assert.equal(await fixtureMembershipCount('smoke-member-target',['smoke-p1','smoke-p2']),0);
   membership.delete('projectIds');
   assert.ok((await post('/settings',membership,{})).text.includes('Pilih proyek dan pengguna'));
-  console.log('PASS multi-project membership add, duplicate retry, admin-only boundary, removal confirmation and atomic invalid-project rejection');
+  await login('smoke-admin');
+  console.log('PASS Admin and PM multi-project membership, duplicate retry, Viewer denial, removal confirmation and atomic invalid-project rejection');
   const overviewHome=await(await request('/dashboard')).text();
   for(const label of ['Pantauan seluruh modul','PO Customer — jumlah','Target Tim hari ini','Quotation / SPH','Time Plan','Dokumen']) assert.ok(overviewHome.includes(label),`Dashboard summary missing: ${label}`);
   for (const category of ['active','on-track','attention','critical','closed','material-shortage','delayed','fat-punch-list','budget-risk']) {
@@ -706,15 +739,15 @@ try {
   assert.ok(viewerHome.includes('Dashboard Viewer'));
   assert.ok(viewerHome.includes('QA Confidential Contract.pdf'));
   assert.ok((await post('/settings?viewerId=smoke-viewer',permit,{})).text.includes('Akses pengaturan izin ditolak'));
-  assert.ok(!viewerHome.includes('Khusus Administrator · nilai penawaran'));
+  assert.ok(!viewerHome.includes('Admin / Project Manager · nilai penawaran'));
   assert.ok(!viewerHome.includes('QA internal private task'));
   const viewerTargets=await(await request(teamPath)).text();
   assert.ok(viewerTargets.includes('QA daily assembly')&&!viewerTargets.includes('QA internal private task'));
   assert.ok((await post(teamPath,dailyReplay,dailyValues)).text.includes('Akses ubah Target Tim ditolak'));
   const viewerSites = await (await request('/dashboard/sites?category=active')).text();
   assert.ok(viewerSites.includes('QA-001') && !viewerSites.includes('QA-002'));
-  assert.ok((await (await request('/quotations')).text()).includes('hanya dapat diakses Administrator'));
-  assert.ok((await post('/quotations',sphReplay,sphValues)).text.includes('Hanya Administrator'));
+  assert.ok((await (await request('/quotations')).text()).includes('hanya dapat diakses'));
+  assert.ok((await post('/quotations',sphReplay,sphValues)).text.includes('Hanya Admin'));
   assert.ok(
     (await post('/boq', manualReplay, manualValues)).text.includes(
       'Akses input manual BoQ ditolak',
@@ -739,7 +772,7 @@ try {
   assert.ok(viewerPo.includes('QA-001') && !viewerPo.includes('QA-002'));
   assert.ok(
     (await post('/customer-po', updatedPo, poValues)).text.includes(
-      'Hanya administrator',
+      'Hanya Admin',
     ),
   );
   assert.ok(viewerHome.includes('QA-001'));
@@ -754,13 +787,21 @@ try {
   );
   const viewerWrite = await post('/production', production, values);
   assert.ok(viewerWrite.text.includes('Akses simpan tidak tersedia'));
+  assert.ok((await post('/finance',adminBudget,{projectId:'smoke-p1',poValue:'1300000.50',budgetValue:'800000',forecastCost:'750000'})).text.includes('hanya untuk Admin'));
+  assert.ok((await post('/time-plan',planActivation,{active:'false'})).text.includes('Hanya Admin'));
+  assert.equal((await request('/api/documents/upload',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId:'smoke-p1',category:'PURCHASE_ORDER',fileName:'po.pdf',mimeType:'application/pdf',sizeBytes:100})})).status,403);
   console.log(
     'PASS viewer project isolation, export denial and mutation denial',
   );
   await login('smoke-pm');
+  const pmForeignPermission=await form('/settings?viewerId=smoke-viewer','scopes',f=>f.get('projectId')==='smoke-p2');
+  pmForeignPermission.append('scopes','PROJECT');pmForeignPermission.append('scopes','PO');
+  assert.ok((await post('/settings?viewerId=smoke-viewer',pmForeignPermission,{})).text.includes('Izin Viewer tersimpan'));
+  assert.ok((await login('smoke-viewer')).includes('QA-002'));
+  await login('smoke-pm');
+  const pmForeignRevoke=await form('/settings?viewerId=smoke-viewer','scopes',f=>f.get('projectId')==='smoke-p2');
+  assert.ok((await post('/settings?viewerId=smoke-viewer',pmForeignRevoke,{})).text.includes('Izin Viewer tersimpan'));
   const pmPermission=await form('/settings?viewerId=smoke-viewer','scopes',f=>f.get('projectId')==='smoke-p1');
-  assert.ok((await post('/settings?viewerId=smoke-viewer',pmPermission,{projectId:'smoke-p2'})).text.includes('akses edit ditolak'));
-  pmPermission.set('projectId','smoke-p1');
   pmPermission.append('scopes','PROJECT');pmPermission.append('scopes','PO');
   assert.ok((await post('/settings?viewerId=smoke-viewer',pmPermission,{})).text.includes('Izin Viewer tersimpan'));
   await login('smoke-viewer');
@@ -769,8 +810,9 @@ try {
   assert.ok(!(await(await request('/team-targets')).text()).includes('QA daily assembly'));
   await login('smoke-pm');
   const permissionPath='/settings?viewerId=smoke-viewer';
-  const bulkGrant=await form(permissionPath,'permissionSnapshot');
-  assert.ok((await post(permissionPath,bulkGrant,{})).text.includes('1 proyek'));
+  const bulkGrant=await form(permissionPath,'scopes',f=>f.get('projectId')==='smoke-p1');
+  for(const scope of ['PROJECT','PO','MATERIALS','BOQ'])bulkGrant.append('scopes',scope);
+  assert.ok((await post(permissionPath,bulkGrant,{})).text.includes('Izin Viewer tersimpan'));
   assert.ok((await post(permissionPath,bulkGrant,{})).text.includes('sudah berubah'));
   await login('smoke-viewer');
   const bulkMaterials=await(await request('/materials')).text();
@@ -779,7 +821,7 @@ try {
   assert.ok(!(await(await request('/finance')).text()).includes('QA-001'));
   assert.ok(!(await(await request('/production')).text()).includes('QA-001'));
   assert.ok((await post(permissionPath,bulkGrant,{})).text.includes('Akses pengaturan izin ditolak'));
-  await login('smoke-admin');
+  await login('smoke-pm');
   const globalGrant=await form(permissionPath,'portfolioVersion');
   assert.ok((await post(permissionPath,globalGrant,{userId:'smoke-pm'})).text.includes('Pilih akun Viewer aktif'));
   globalGrant.set('userId','smoke-viewer');
@@ -793,8 +835,6 @@ try {
       INSERT INTO "Material" ("id","projectId","code","description","unit","requiredQty","updatedAt") VALUES ('bulk-future','smoke-future','BULK-FUTURE','QA future material','UNIT',1,now());`);
   } finally {await fixtureClient.end();}
   const globalRevoke=await form(permissionPath,'portfolioVersion');
-  await login('smoke-pm');
-  assert.ok((await post(permissionPath,globalRevoke,{})).text.includes('Hanya Admin'));
   const globalHome=await login('smoke-viewer');
   assert.ok(globalHome.includes('QA-001')&&globalHome.includes('QA-002'));
   assert.ok(globalHome.includes('QA-FUTURE'));
@@ -809,38 +849,30 @@ try {
   assert.equal((await request('/api/documents/smoke-private-doc/download')).status,404);
   assert.ok((await post(permissionPath,globalRevoke,{})).text.includes('Hanya Admin'));
   assert.ok((await post('/boq',manualReplay,manualValues)).text.includes('Akses input manual BoQ ditolak'));
-  await login('smoke-admin');
+  await login('smoke-pm');
   assert.ok((await post(permissionPath,globalRevoke,{})).text.includes('Akses global dinonaktifkan'));
   const afterRevoke=await login('smoke-viewer');
   assert.ok(!afterRevoke.includes('QA-002'));
   assert.ok(!(await(await request('/materials')).text()).includes('QA bulk material two'));
   assert.ok(!(await(await request('/boq')).text()).includes('QA-FUTURE'));
-  console.log('PASS mass viewer access, PM ownership, stale grants, admin global toggle, sensitive scope isolation and revocation');
+  console.log('PASS PM manages Viewer permissions across projects, stale grants, global toggle, sensitive scope isolation and revocation');
   await login('smoke-pm');
   const pmDaily=await form(teamPath,'targetQty',f=>!f.get('id'));
-  assert.ok((await post(teamPath,pmDaily,{...dailyValues,projectId:'smoke-p2'})).text.includes('akses edit ditolak'));
-  assert.ok((await post(teamPath,pmDaily,{...dailyValues,projectId:''})).text.includes('hanya dapat dikelola Admin'));
-  assert.ok((await post(teamPath,pmDaily,{...dailyValues,title:'QA PM own daily task'})).text.includes('Target harian tersimpan'));
+  assert.ok((await post(teamPath,pmDaily,{...dailyValues,projectId:'smoke-p2',title:'QA PM foreign-project daily task'})).text.includes('Target harian tersimpan'));
+  assert.ok((await post(teamPath,await form(teamPath,'targetQty',f=>!f.get('id')),{...dailyValues,projectId:'',title:'QA PM general daily task'})).text.includes('Target harian tersimpan'));
+  assert.ok((await post(teamPath,await form(teamPath,'targetQty',f=>!f.get('id')),{...dailyValues,title:'QA PM own daily task'})).text.includes('Target harian tersimpan'));
   const pmManual = await form('/boq', 'manualRows');
+  assert.ok((await post('/boq',pmManual,{...manualValues,projectId:'smoke-p2',expectedVersion:'0'})).text.includes('BoQ manual versi 1 tersimpan'));
   assert.ok(
     (
-      await post('/boq', pmManual, { ...manualValues, projectId: 'smoke-p2' })
-    ).text.includes('akses edit ditolak'),
-  );
-  assert.ok(
-    (
-      await post('/boq', pmManual, {
+      await post('/boq', await form('/boq','manualRows'), {
         ...manualValues,
+        expectedVersion:'2',
         manualRows: JSON.stringify(
           manualItems.map((r) => ({ ...r, unitPrice: '300' })),
         ),
       })
     ).text.includes('BoQ manual versi 3 tersimpan'),
-  );
-  assert.ok(
-    (
-      await post('/time-plan', planActivation, { active: 'false' })
-    ).text.includes('Hanya administrator'),
   );
   const pmPlan = await form(
     '/time-plan',
@@ -849,30 +881,26 @@ try {
   );
   assert.ok(
     (
-      await post('/time-plan', pmPlan, {
-        ...secondUpdate,
-        projectId: 'smoke-p2',
-      })
-    ).text.includes('akses edit ditolak'),
-  );
-  assert.ok(
-    (
       await post('/time-plan', pmPlan, { ...secondUpdate, progressPct: '75' })
     ).text.includes('Pekerjaan tersimpan'),
   );
   assert.equal(await reportProgress(), 80);
-  assert.ok(
-    (await post('/customer-po', updatedPo, poValues)).text.includes(
-      'Hanya administrator',
-    ),
-  );
+  assert.ok((await post('/time-plan',await form('/time-plan','active'),{active:'false'})).text.includes('Time Plan kembali Draft'));
+  assert.ok((await post('/time-plan',await form('/time-plan','active'),{active:'true'})).text.includes('Time Plan aktif'));
+  const foreignTask=await form('/time-plan?projectId=smoke-p2','weight',f=>!f.get('id'));
+  assert.ok((await post('/time-plan?projectId=smoke-p2',foreignTask,{...taskValues,projectId:'smoke-p2',weight:'100',title:'PM plan on unassigned project',predecessorId:''})).text.includes('Pekerjaan tersimpan'));
+  const pmPo=await form('/customer-po','customerPoNumber',f=>f.get('projectId')==='smoke-p2');
+  assert.ok((await post('/customer-po',pmPo,{...poValues,projectId:'smoke-p2',customerPoNumber:'QA-PO/002',poValue:'500000',customerPoNotes:'Updated by PM with global access'})).text.includes('PO Customer tersimpan'));
+  assert.equal((await request('/api/reports?type=portfolio&format=xlsx&projectId=smoke-p2')).status,200);
+  const pmQuotation=await form('/quotations','number',f=>!f.get('id'));
+  assert.ok((await post('/quotations',pmQuotation,{...sphValues,number:'QA-SPH/PM',title:'Project manager quotation'})).text.includes('SPH tersimpan'));
   assert.equal(
     (
       await request('/api/documents/upload', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          projectId: 'smoke-p1',
+          projectId: 'missing-project',
           category: 'PURCHASE_ORDER',
           fileName: 'po.pdf',
           mimeType: 'application/pdf',
@@ -880,17 +908,60 @@ try {
         }),
       })
     ).status,
-    403,
+    404,
   );
-  const pmBudget = await post('/finance', adminBudget, {
-    projectId: 'smoke-p1',
-    poValue: '100',
-    budgetValue: '100',
-    forecastCost: '100',
+  assert.equal((await request('/api/documents/missing-document/complete',{method:'POST'})).status,404);
+  const pmBudget = await post('/finance',await form('/finance','budgetValue',f=>f.get('projectId')==='smoke-p2'), {
+    projectId: 'smoke-p2',
+    poValue: '500000',
+    budgetValue: '410000',
+    forecastCost: '310000',
   });
-  assert.ok(pmBudget.text.includes('hanya untuk Admin'));
-  console.log('PASS project manager cannot alter commercial baseline');
-  await login('smoke-admin');
+  assert.ok(pmBudget.text.includes('Baseline finance diperbarui'));
+  console.log('PASS PM manages unassigned project BoQ, PO, Finance, SPH, Time Plan, general activities and reports');
+
+  const createAccount=await form('/settings','username');
+  const newAccount={username:'qa-pm-created',displayName:'Created by PM',role:'VIEWER',password:'Local-PM-Created-2026!'};
+  const createProject=await projectActionForm('createProjectAction');
+  const newProject={code:'QA-PM-CREATED',name:'Project created by PM',clientName:'QA customer',status:'ACTIVE',health:'ON_TRACK',phase:'PLANNING',progressPct:'0',poValue:'0',budgetValue:'100',actualCost:'0',forecastCost:'90',address:'QA address',latitude:'',longitude:'',plannedStart:'',plannedFinish:'',actualFinish:'',projectManagerId:'smoke-admin'};
+  const updateProject=await projectActionForm('updateProjectAction');
+  const archiveProject=await projectActionForm('archiveProjectAction');
+  await login('smoke-viewer');
+  assert.ok((await post('/settings',createAccount,newAccount)).text.includes('Hanya Admin'));
+  assert.ok((await post('/projects',createProject,newProject)).text.includes('Hanya Admin'));
+  assert.ok((await post('/projects',updateProject,{})).text.includes('Viewer tidak dapat mengubah'));
+  assert.ok((await post('/projects',archiveProject,{})).text.includes('Hanya Admin'));
+  assert.equal((await request('/api/documents/missing-document/complete',{method:'POST'})).status,403);
+  await login('smoke-pm');
+  assert.ok((await post('/settings',createAccount,newAccount)).text.includes('Akun dibuat'));
+  assert.ok((await post('/projects',createProject,newProject)).text.includes('QA-PM-CREATED berhasil dibuat'));
+  const identityDb=new pg.Client({connectionString:'postgresql://postgres:postgres@127.0.0.1:55432/postgres?sslmode=disable'});
+  await identityDb.connect();
+  try {
+    const createdUserId=String((await identityDb.query(`SELECT id FROM "User" WHERE "normalizedUsername"='qa-pm-created'`)).rows[0].id);
+    const activeUser=await form('/settings','active',f=>f.get('id')===createdUserId);
+    await login('smoke-viewer');
+    assert.ok((await post('/settings',activeUser,{active:'false'})).text.includes('Akses ditolak'));
+    await login('smoke-pm');
+    assert.ok((await post('/settings',activeUser,{active:'false'})).text.includes('Status akun diperbarui'));
+    assert.ok((await post('/settings',await form('/settings','active',f=>f.get('id')===createdUserId),{active:'true'})).text.includes('Status akun diperbarui'));
+    const adminDeactivate=await form('/settings','active',f=>f.get('id')==='smoke-admin');
+    assert.ok((await post('/settings',adminDeactivate,{active:'false'})).text.includes('Status akun belum dapat diperbarui'));
+    assert.ok((await post('/settings',adminDeactivate,{id:'smoke-pm',active:'false'})).text.includes('Akun sendiri tidak dapat dinonaktifkan'));
+    const record=(await identityDb.query(`SELECT id,to_char("updatedAt",'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "updatedAt" FROM "Project" WHERE code='QA-PM-CREATED'`)).rows[0];
+    const projectIdentity={id:String(record.id),updatedAt:new Date(record.updatedAt).toISOString()};
+    const pmProjectUpdate=await post('/projects',updateProject,{...newProject,...projectIdentity,name:'Project edited by PM',budgetValue:'150'});
+    assert.ok(pmProjectUpdate.text.includes('berhasil diperbarui'),pmProjectUpdate.text.slice(-1800));
+    const updated=(await identityDb.query(`SELECT to_char("updatedAt",'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "updatedAt" FROM "Project" WHERE id=$1`,[record.id])).rows[0];
+    assert.ok((await post('/projects',archiveProject,{id:String(record.id),updatedAt:new Date(updated.updatedAt).toISOString(),confirm:'yes'})).text.includes('Project berhasil diarsipkan'));
+    const draft=(await identityDb.query(`SELECT id FROM "Boq" WHERE "projectId"='smoke-p2' AND status='DRAFT' ORDER BY version DESC LIMIT 1`)).rows[0];
+    const approval={boqId:String(draft.id),expectedApprovedBoqId:null};
+    await login('smoke-viewer');
+    assert.ok((await approveViaHttp(approval)).includes('Hanya Admin'));
+    await login('smoke-pm');
+    assert.ok((await approveViaHttp(approval)).includes('menjadi baseline approved'));
+  } finally {await identityDb.end();}
+  console.log('PASS PM creates/edits/archives projects, assigns managers, manages users, preserves last Admin and Viewer mutation boundaries');
   // Large portfolio fixture is isolated from production credentials and data.
   const batchDb=new pg.Client({connectionString:'postgresql://postgres:postgres@127.0.0.1:55432/postgres?sslmode=disable'});
   await batchDb.connect();
@@ -900,17 +971,19 @@ try {
     const batchForm=await form('/settings','projectIds');
     for(const id of batchIds) batchForm.append('projectIds',id);
     const started=Date.now();
-    assert.ok((await post('/settings',batchForm,{userId:'smoke-pm',operation:'add'})).text.includes('100 proyek berhasil ditambahkan'));
+    assert.ok((await post('/settings',batchForm,{userId:'smoke-member-target',operation:'add'})).text.includes('100 proyek berhasil ditambahkan'));
     assert.ok((await post('/settings',batchForm,{})).text.includes('100 proyek berhasil ditambahkan'));
     const count=async(userId:string)=>Number((await batchDb.query(`SELECT count(*) AS count FROM "ProjectMember" WHERE "userId"=$1 AND "projectId"=ANY($2::text[])`,[userId,batchIds])).rows[0].count);
-    assert.equal(await count('smoke-pm'),100);
+    assert.equal(await count('smoke-member-target'),100);
     assert.ok((await post('/settings',batchForm,{userId:'smoke-admin'})).text.includes('Akun ADMIN sudah memiliki akses semua proyek dan PO'));
     assert.equal(await count('smoke-admin'),0);
-    assert.ok((await post('/settings',batchForm,{userId:'smoke-pm',operation:'remove',confirmBulkRemove:'yes'})).text.includes('100 proyek berhasil dicabut'));
+    assert.ok((await post('/settings',batchForm,{userId:'smoke-pm'})).text.includes('Akun PROJECT_MANAGER sudah memiliki akses semua proyek dan PO'));
     assert.equal(await count('smoke-pm'),0);
+    assert.ok((await post('/settings',batchForm,{userId:'smoke-member-target',operation:'remove',confirmBulkRemove:'yes'})).text.includes('100 proyek berhasil dicabut'));
+    assert.equal(await count('smoke-member-target'),0);
     const audit=await batchDb.query(`SELECT count(*) AS count FROM "AuditLog" WHERE "projectId"=ANY($1::text[]) AND "entityType"='ProjectMember'`,[batchIds]);
     assert.equal(Number(audit.rows[0].count),300);
-    console.log(`PASS 100-project batch grant/retry/revoke, complete audit log, and ADMIN no-op (${Date.now()-started}ms local)`);
+    console.log(`PASS PM 100-project batch grant/retry/revoke, complete audit log, and full-role no-op (${Date.now()-started}ms local)`);
   } finally {await batchDb.end();}
   console.log('All HTTP acceptance checks passed.');
 } catch (error) {

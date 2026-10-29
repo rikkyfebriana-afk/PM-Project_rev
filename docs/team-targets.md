@@ -4,7 +4,7 @@ Berbagi WhatsApp menggunakan pratinjau dan tombol salin, tanpa layanan berbayar 
 
 Papan Senin–Minggu pada `/team-targets`, dapat berganti minggu atau melompat ke tanggal. PIC berupa nama teks, tidak harus memiliki akun dan tidak memberi akses login.
 
-Admin mengelola seluruh aktivitas; PM hanya proyek yang dikelolanya; Viewer membaca sesuai keanggotaan proyek. Aktivitas umum (tanpa proyek) hanya tersedia bagi Admin. Target pada proyek Closed/Cancelled hanya baca sampai proyek dibuka kembali. Aktivitas proyek arsip tidak ditampilkan.
+Admin dan PM mengelola seluruh aktivitas di semua proyek, termasuk aktivitas umum tanpa proyek. Viewer membaca sesuai izin Target Tim pada proyek. Target pada proyek Closed/Cancelled hanya baca sampai proyek dibuka kembali. Aktivitas proyek arsip tidak ditampilkan.
 
 Isi proyek, pekerjaan, PIC, tanggal, target, realisasi, satuan, prioritas, status, catatan. Pekerjaan tanpa quantity menggunakan target 1 aktivitas. Status Belum mulai mensyaratkan realisasi 0; Selesai mensyaratkan realisasi >= target. Tombol Tandai selesai memerlukan konfirmasi dan mengisi realisasi minimal sebesar target. Terhambat/Dibatalkan wajib catatan.
 

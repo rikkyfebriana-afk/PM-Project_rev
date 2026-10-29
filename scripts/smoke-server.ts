@@ -17,6 +17,7 @@ for (const [id, role] of [
   ['smoke-admin', 'ADMIN'],
   ['smoke-pm', 'PROJECT_MANAGER'],
   ['smoke-viewer', 'VIEWER'],
+  ['smoke-member-target', 'VIEWER'],
 ])
   await db.query(
     `INSERT INTO "User" ("id","username","normalizedUsername","displayName","role","passwordHash","updatedAt") VALUES ($1,$1,$1,$1,$2::"UserRole",$3,now())`,

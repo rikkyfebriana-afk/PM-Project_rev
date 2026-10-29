@@ -2,6 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getCurrentUser, isLocalDemoMode, type CurrentUser } from '@/lib/auth/session';
+import { hasFullAccess } from '@/lib/auth/roles';
 import { prisma } from '@/lib/prisma';
 import { lockEditableProject } from '@/lib/operations/transaction';
 import { dailyTargetSchema } from '@/lib/team-targets/model';
@@ -12,7 +13,7 @@ function snapshot(t: DailyTarget) {
   return { title:t.title, pic:t.pic, scheduledDate:t.scheduledDate.toISOString().slice(0,10), targetQty:t.targetQty.toString(), actualQty:t.actualQty.toString(), unit:t.unit, priority:t.priority, status:t.status, notes:t.notes, version:t.version };
 }
 async function authorizeProject(tx: Prisma.TransactionClient, projectId: string | null, user: CurrentUser) {
-  if (!projectId) { if (user.role !== 'ADMIN') throw new Error('Aktivitas umum tanpa proyek hanya dapat dikelola Admin.'); return; }
+  if (!projectId) { if (!hasFullAccess(user.role)) throw new Error('Aktivitas umum tanpa proyek hanya dapat dikelola Admin atau Project Manager.'); return; }
   const p = await lockEditableProject(tx,projectId,user);
   if (['CLOSED','CANCELLED'].includes(p.status)) throw new Error('Proyek sudah ditutup/dibatalkan. Buka kembali proyek sebelum mengubah target.');
 }

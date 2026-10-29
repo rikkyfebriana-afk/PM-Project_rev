@@ -23,6 +23,7 @@ import { useState, type ReactNode } from 'react';
 
 import { logoutAction } from '@/app/actions/auth';
 import { CompanyLogo, companyName } from '@/components/brand/company-logo';
+import { hasFullAccess } from '@/lib/auth/roles';
 
 const navigation = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -87,7 +88,7 @@ export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
             Workspace
           </p>
           <div className="space-y-1">
-            {navigation.filter(item => item.href !== '/quotations' || user.role === 'ADMIN').map(({ label, href, icon: Icon }) => {
+            {navigation.filter(item => item.href !== '/quotations' || hasFullAccess(user.role)).map(({ label, href, icon: Icon }) => {
               const active =
                 pathname === href || pathname.startsWith(`${href}/`);
               return (
@@ -185,7 +186,7 @@ export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
               className="absolute right-4 top-[76px] max-h-[70vh] w-64 overflow-y-auto border border-slate-200 bg-white p-3 shadow-xl lg:hidden"
             >
               {[
-                ...navigation.filter(item => item.href !== '/quotations' || user.role === 'ADMIN'),
+                ...navigation.filter(item => item.href !== '/quotations' || hasFullAccess(user.role)),
                 { label: 'Settings', href: '/settings', icon: Settings },
               ].map(({ label, href }) => (
                 <Link

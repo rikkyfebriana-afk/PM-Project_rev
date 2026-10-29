@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { Prisma } from '@/generated/prisma/client';
 import { getCurrentUser, isLocalDemoMode } from '@/lib/auth/session';
+import { hasFullAccess } from '@/lib/auth/roles';
 import { prisma } from '@/lib/prisma';
 import { lockEditableProject } from '@/lib/operations/transaction';
 import type { MutationState } from '@/lib/operations/validation';
@@ -89,8 +90,8 @@ export async function voidCost(
   form: FormData,
 ): Promise<MutationState> {
   const user = await getCurrentUser();
-  if (!user || user.role !== 'ADMIN' || isLocalDemoMode())
-    return { status: 'error', message: 'Pembatalan biaya hanya untuk Admin.' };
+  if (!user || !hasFullAccess(user.role) || isLocalDemoMode())
+    return { status: 'error', message: 'Pembatalan biaya hanya untuk Admin atau Project Manager.' };
   const parsed = z
     .object({
       id: z.string().min(1).max(128),
@@ -159,10 +160,10 @@ export async function saveBudget(
   form: FormData,
 ): Promise<MutationState> {
   const user = await getCurrentUser();
-  if (!user || user.role !== 'ADMIN' || isLocalDemoMode())
+  if (!user || !hasFullAccess(user.role) || isLocalDemoMode())
     return {
       status: 'error',
-      message: 'Perubahan baseline finance hanya untuk Admin.',
+      message: 'Perubahan baseline finance hanya untuk Admin atau Project Manager.',
     };
   const parsed = budgetSchema.safeParse(Object.fromEntries(form));
   if (!parsed.success)

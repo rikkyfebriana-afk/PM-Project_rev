@@ -2,8 +2,9 @@ import 'server-only';
 import type { Prisma } from '@/generated/prisma/client';
 import type { z } from 'zod';
 import { membershipSchema, MembershipInputError } from './membership';
+import { hasFullAccess } from '@/lib/auth/roles';
 
-// The caller enforces ADMIN before entering this transaction.
+// The caller enforces full access before entering this transaction.
 export async function applyMembershipBatch(
   tx: Prisma.TransactionClient,
   input: z.infer<typeof membershipSchema>,
@@ -12,7 +13,7 @@ export async function applyMembershipBatch(
   const {projectIds,userId,operation}=input;
   const initial=await tx.user.findUnique({where:{id:userId},select:{role:true,isActive:true}});
   if(!initial?.isActive) throw new MembershipInputError('Pengguna tidak ditemukan atau sudah tidak aktif. Muat ulang dan pilih pengguna aktif.');
-  if(initial.role==='ADMIN') return 'ADMIN_UNCHANGED' as const;
+  if(hasFullAccess(initial.role)) return initial.role==='ADMIN'?'ADMIN_UNCHANGED' as const:'PROJECT_MANAGER_UNCHANGED' as const;
 
   // Match single-project mutations: advisory locks, project row locks, then user.
   // Batch round trips stay constant even when hundreds of projects are selected.
@@ -25,7 +26,7 @@ export async function applyMembershipBatch(
   const targets=await tx.$queryRaw<{role:string;isActive:boolean}[]>`SELECT "role","isActive" FROM "User" WHERE "id"=${userId} FOR UPDATE`;
   const target=targets[0];
   if(!target?.isActive) throw new MembershipInputError('Pengguna tidak ditemukan atau sudah tidak aktif. Muat ulang dan pilih pengguna aktif.');
-  if(target.role==='ADMIN') return 'ADMIN_UNCHANGED' as const;
+  if(hasFullAccess(target.role)) return target.role==='ADMIN'?'ADMIN_UNCHANGED' as const:'PROJECT_MANAGER_UNCHANGED' as const;
   if(operation==='add') {
     await tx.projectMember.createMany({data:projectIds.map(projectId=>({projectId,userId})),skipDuplicates:true});
   } else {

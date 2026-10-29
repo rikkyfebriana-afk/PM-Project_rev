@@ -2,6 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getCurrentUser, isLocalDemoMode } from '@/lib/auth/session';
+import { hasFullAccess } from '@/lib/auth/roles';
 import { prisma } from '@/lib/prisma';
 import type { MutationState } from '@/lib/operations/validation';
 import { lockEditableProject } from '@/lib/operations/transaction';
@@ -21,7 +22,7 @@ function failure(e: unknown): MutationState {
 }
 export async function saveQuotation(_: MutationState, form: FormData): Promise<MutationState> {
   const user = await getCurrentUser();
-  if (!user || user.role !== 'ADMIN' || isLocalDemoMode()) return { status: 'error', message: 'Hanya Administrator yang dapat mengelola SPH.' };
+  if (!user || !hasFullAccess(user.role) || isLocalDemoMode()) return { status: 'error', message: 'Hanya Admin atau Project Manager yang dapat mengelola SPH.' };
   const parsed = quotationSchema.safeParse(Object.fromEntries(form));
   if (!parsed.success) return { status: 'error', message: parsed.error.issues.map(i => i.message).join(' ') };
   try {
@@ -45,7 +46,7 @@ export async function saveQuotation(_: MutationState, form: FormData): Promise<M
 }
 export async function linkQuotationPo(_: MutationState, form: FormData): Promise<MutationState> {
   const user = await getCurrentUser();
-  if (!user || user.role !== 'ADMIN' || isLocalDemoMode()) return { status: 'error', message: 'Hanya Administrator yang dapat mengelola SPH.' };
+  if (!user || !hasFullAccess(user.role) || isLocalDemoMode()) return { status: 'error', message: 'Hanya Admin atau Project Manager yang dapat mengelola SPH.' };
   const parsed = z.object({ quotationId: z.string().min(1).max(100), version: z.coerce.number().int().min(1), projectId: z.string().min(1).max(100), operation: z.enum(['link', 'unlink']) }).safeParse(Object.fromEntries(form));
   if (!parsed.success) return { status: 'error', message: 'Pilih SPH dan PO yang valid.' };
   try {

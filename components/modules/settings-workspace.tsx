@@ -1,5 +1,6 @@
 'use client';
 import { useActionState, useState } from 'react';
+import { hasFullAccess } from '@/lib/auth/roles';
 import {
   createUser,
   setUserActive,
@@ -129,11 +130,11 @@ function MemberForm({ data }: { data: SettingsData }) {
             <option value="remove">Cabut akses anggota</option>
           </select>
         </Field>
-        {target?.role === 'ADMIN' && <p className="text-sm text-teal-800 sm:col-span-3">Akun ADMIN sudah dapat mengakses semua proyek dan PO. Keanggotaan ini tidak diperlukan untuk membuka atau mencabut akses Admin.</p>}
+        {target && hasFullAccess(target.role) && <p className="text-sm text-teal-800 sm:col-span-3">Akun ADMIN dan PROJECT_MANAGER sudah memiliki akses penuh ke semua proyek dan PO. Keanggotaan tambahan tidak diperlukan dan tidak mencabut akses penuh akun tersebut.</p>}
         {target?.role === 'VIEWER' && <p className="text-sm text-amber-800 sm:col-span-3">Untuk membuka semua data Proyek, PO, Material dan BoQ bagi Viewer, gunakan Pengaturan Izin Viewer di atas. Keanggotaan tidak mengganti izin Viewer.</p>}
         {operation === 'remove' && selectedIds.length > 1 && <label className="flex items-start gap-2 text-sm text-red-800 sm:col-span-3">
           <input key={`${userId}-${selectedIds.join(',')}`} type="checkbox" name="confirmBulkRemove" value="yes" required/>
-          Saya mengonfirmasi pencabutan keanggotaan pengguna ini dari {selectedIds.length} proyek yang dipilih. Hak Admin dan penugasan PM tidak berubah.
+          Saya mengonfirmasi pencabutan keanggotaan pengguna ini dari {selectedIds.length} proyek yang dipilih. Akses penuh Admin dan Project Manager tidak berubah.
         </label>}
       </fieldset>
       <MutationFeedback state={state} />
@@ -250,8 +251,8 @@ export function SettingsWorkspace({ data }: { data: SettingsData }) {
             <h3 className="font-semibold">Akses anggota project</h3>
             <p className="mt-2 text-xs text-slate-500">
               Untuk akses Viewer sekaligus, gunakan Pengaturan Izin Viewer di atas.
-              Keanggotaan ini tidak membuka izin tambahan Viewer. Hak edit Project
-              Manager mengikuti assignment manager pada Project Register.
+              Keanggotaan ini tidak membuka izin tambahan Viewer. Admin dan Project
+              Manager sudah memiliki akses penuh ke seluruh proyek tanpa assignment tambahan.
             </p>
             <MemberForm data={data} />
             <div className="mt-5 grid gap-3 sm:grid-cols-2">

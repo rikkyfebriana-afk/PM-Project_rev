@@ -141,7 +141,7 @@ export function ProjectForm({
           <p className="mt-2 text-xs leading-5 text-[#74838d]">
             {masterEditable
               ? 'Lengkapi master data, delivery control, komersial, jadwal, dan lokasi.'
-              : 'Anda dapat memperbarui progress, fase, health, jadwal, dan lokasi project yang dikelola.'}
+              : 'Anda dapat melihat progress, fase, health, jadwal, dan lokasi proyek sesuai izin.'}
           </p>
         </div>
         <Button

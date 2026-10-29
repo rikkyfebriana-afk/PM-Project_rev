@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { Prisma } from '@/generated/prisma/client';
 
 import { getCurrentUser, isLocalDemoMode } from '@/lib/auth/session';
+import { hasFullAccess } from '@/lib/auth/roles';
 import { prisma } from '@/lib/prisma';
 import { editableProjectWhere } from '@/lib/projects/access';
 import type { ProjectActionState } from '@/lib/projects/action-state';
@@ -80,22 +81,6 @@ function fullProjectData(values: ProjectFormValues) {
   };
 }
 
-function operationalProjectData(values: ProjectFormValues) {
-  return {
-    health: values.health,
-    phase: values.phase,
-    progressPct: new Prisma.Decimal(values.progressPct),
-    address: values.address,
-    latitude:
-      values.latitude === null ? null : new Prisma.Decimal(values.latitude),
-    longitude:
-      values.longitude === null ? null : new Prisma.Decimal(values.longitude),
-    plannedStart: dateFromInput(values.plannedStart),
-    plannedFinish: dateFromInput(values.plannedFinish),
-    actualFinish: dateFromInput(values.actualFinish),
-  };
-}
-
 async function validateManager(projectManagerId: string | null) {
   if (!projectManagerId) return true;
   const manager = await prisma.user.findFirst({
@@ -147,10 +132,10 @@ export async function createProjectAction(
       message:
         'Mode demo hanya baca. Hubungkan PostgreSQL untuk menyimpan data.',
     };
-  if (user.role !== 'ADMIN')
+  if (!hasFullAccess(user.role))
     return {
       status: 'error',
-      message: 'Hanya Admin yang dapat membuat project.',
+      message: 'Hanya Admin atau Project Manager yang dapat membuat project.',
     };
 
   const parsed = parseProjectForm(formData);
@@ -245,7 +230,6 @@ export async function updateProjectAction(
       )
         return { outcome: 'plan-conflict' as const };
       if (
-        user.role === 'ADMIN' &&
         current.customerPoNumber &&
         (!current.poValue.eq(parsed.data.poValue) ||
           current.clientName !== parsed.data.clientName)
@@ -253,7 +237,6 @@ export async function updateProjectAction(
         return { outcome: 'po-conflict' as const };
 
       const managerChanged =
-        user.role === 'ADMIN' &&
         parsed.data.projectManagerId !== current.projectManagerId;
       if (managerChanged && parsed.data.projectManagerId) {
         const manager = await transaction.user.findFirst({
@@ -267,15 +250,11 @@ export async function updateProjectAction(
         if (!manager) return { outcome: 'invalid-manager' as const };
       }
 
-      const data =
-        user.role === 'ADMIN'
-          ? fullProjectData(parsed.data)
-          : operationalProjectData(parsed.data);
+      const data = fullProjectData(parsed.data);
       const hasLedger = await transaction.costEntry.count({
         where: { projectId: current.id },
       });
       if (
-        user.role === 'ADMIN' &&
         hasLedger &&
         !current.actualCost.eq(parsed.data.actualCost)
       )
@@ -288,7 +267,7 @@ export async function updateProjectAction(
         },
         data: {
           ...data,
-          ...(user.role === 'ADMIN' && !hasLedger
+          ...(!hasLedger
             ? { costOpeningBalance: new Prisma.Decimal(parsed.data.actualCost) }
             : {}),
         },
@@ -304,7 +283,7 @@ export async function updateProjectAction(
           entityId: current.id,
           metadata: {
             code: current.code,
-            scope: user.role === 'ADMIN' ? 'MASTER' : 'OPERATIONAL',
+            scope: 'MASTER',
             changedFields: Object.keys(data),
           },
         },
@@ -390,10 +369,10 @@ export async function archiveProjectAction(
       message:
         'Mode demo hanya baca. Hubungkan PostgreSQL untuk mengarsipkan data.',
     };
-  if (user.role !== 'ADMIN')
+  if (!hasFullAccess(user.role))
     return {
       status: 'error',
-      message: 'Hanya Admin yang dapat mengarsipkan project.',
+      message: 'Hanya Admin atau Project Manager yang dapat mengarsipkan project.',
     };
 
   const id = String(formData.get('id') ?? '');

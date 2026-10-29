@@ -10,7 +10,7 @@ PO masuk dari customer ke PT. Arsko Sukses Bersama. Satu proyek menyimpan satu P
 4. Simpan PO Customer. Unggah PDF atau foto PO melalui Dokumen PO.
 5. Riwayat update menampilkan 10 perubahan terakhir beserta nilai sebelum/sesudah. Riwayat lengkap tetap disimpan di AuditLog.
 
-Hanya ADMIN dapat mengubah data dan mengunggah dokumen PO. Pengguna lain hanya dapat membaca PO dari proyek yang dapat mereka akses. Dokumen tetap privat dan diunduh melalui endpoint terautentikasi.
+ADMIN dan PROJECT_MANAGER dapat mengubah data dan mengunggah dokumen PO di semua proyek. Viewer hanya membaca PO dari proyek yang diizinkan. Dokumen tetap privat dan diunduh melalui endpoint terautentikasi.
 
 ## Nilai dan status
 

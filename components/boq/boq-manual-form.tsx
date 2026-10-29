@@ -61,7 +61,7 @@ export function BoqManualForm({
       <p className="mt-2 text-xs leading-5 text-slate-600">
         Isi seluruh item untuk revisi baru, bukan hanya item tambahan. Draft
         sebelumnya akan menjadi Superseded; baseline approved dan material tetap
-        sampai Admin menyetujui revisi baru. Form belum tersimpan sampai tombol
+        sampai Admin atau Project Manager menyetujui revisi baru. Form belum tersimpan sampai tombol
         Simpan ditekan. Berpindah proyek atau memuat ulang akan mengosongkan
         input.
       </p>
@@ -208,7 +208,7 @@ export function BoqManualForm({
         <MutationFeedback state={state} />
         {!enabled && (
           <p className="text-xs text-slate-500">
-            Input hanya untuk Admin atau PM penanggung jawab; mode demo hanya
+            Input hanya untuk Admin atau Project Manager; mode demo hanya
             baca.
           </p>
         )}

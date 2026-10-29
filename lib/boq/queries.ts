@@ -3,6 +3,7 @@ import 'server-only';
 import { Prisma } from '@/generated/prisma/client';
 import type { CurrentUser } from '@/lib/auth/session';
 import { isLocalDemoMode } from '@/lib/auth/session';
+import { hasFullAccess } from '@/lib/auth/roles';
 import type { BoqWorkspaceData, BoqWorkspaceRevision } from '@/lib/boq/types';
 import { prisma } from '@/lib/prisma';
 import { accessibleProjectWhere } from '@/lib/projects/access';
@@ -80,14 +81,11 @@ export async function getBoqWorkspaceData(
       code: project.code,
       name: project.name,
       clientName: project.clientName,
-      canEdit:
-        user.role === 'ADMIN' ||
-        (user.role === 'PROJECT_MANAGER' &&
-          project.projectManagerId === user.id),
+      canEdit: hasFullAccess(user.role),
     }));
     return {
       demoMode: true,
-      canApprove: user.role === 'ADMIN',
+      canApprove: hasFullAccess(user.role),
       projects,
       boqs: demoBoqs,
       metrics: workspaceMetrics(demoBoqs),
@@ -183,16 +181,13 @@ export async function getBoqWorkspaceData(
 
   return {
     demoMode: false,
-    canApprove: user.role === 'ADMIN',
+    canApprove: hasFullAccess(user.role),
     projects: projectRows.map((project) => ({
       id: project.id,
       code: project.code,
       name: project.name,
       clientName: project.clientName,
-      canEdit:
-        user.role === 'ADMIN' ||
-        (user.role === 'PROJECT_MANAGER' &&
-          project.projectManagerId === user.id),
+      canEdit: hasFullAccess(user.role),
     })),
     boqs,
     metrics: workspaceMetrics(boqs, versionCount),

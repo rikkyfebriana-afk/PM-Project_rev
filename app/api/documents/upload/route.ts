@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { DocumentCategory } from '@/generated/prisma/enums';
 import { getCurrentUser, isLocalDemoMode } from '@/lib/auth/session';
+import { hasFullAccess } from '@/lib/auth/roles';
 import { prisma } from '@/lib/prisma';
 import { editableProjectWhere } from '@/lib/projects/access';
 import { getSupabaseAdmin } from '@/lib/storage/supabase-admin';
@@ -86,9 +87,9 @@ export async function POST(request: Request) {
 
   const { projectId, milestoneId, category, fileName, mimeType, sizeBytes } =
     parsed.data;
-  if (category === 'PURCHASE_ORDER' && user.role !== 'ADMIN')
+  if (category === 'PURCHASE_ORDER' && !hasFullAccess(user.role))
     return NextResponse.json(
-      { error: 'Dokumen PO Customer hanya dapat diunggah administrator.' },
+      { error: 'Dokumen PO Customer hanya dapat diunggah Admin atau Project Manager.' },
       { status: 403 },
     );
   const project = await canUploadToProject(user, projectId);

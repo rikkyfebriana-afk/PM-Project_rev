@@ -1,6 +1,7 @@
 'use server';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser, isLocalDemoMode } from '@/lib/auth/session';
+import { hasFullAccess } from '@/lib/auth/roles';
 import { prisma } from '@/lib/prisma';
 import { lockEditableProject } from '@/lib/operations/transaction';
 import type { MutationState } from '@/lib/operations/validation';
@@ -12,10 +13,10 @@ export async function saveCustomerPo(
   form: FormData,
 ): Promise<MutationState> {
   const user = await getCurrentUser();
-  if (!user || user.role !== 'ADMIN' || isLocalDemoMode())
+  if (!user || !hasFullAccess(user.role) || isLocalDemoMode())
     return {
       status: 'error',
-      message: 'Hanya administrator yang dapat memperbarui PO Customer.',
+      message: 'Hanya Admin atau Project Manager yang dapat memperbarui PO Customer.',
     };
   const parsed = customerPoSchema.safeParse(Object.fromEntries(form));
   if (!parsed.success)

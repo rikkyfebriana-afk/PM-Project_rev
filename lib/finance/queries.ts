@@ -1,4 +1,5 @@
 import 'server-only';
+import { hasFullAccess } from '@/lib/auth/roles';
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '@/generated/prisma/client';
 import type { CurrentUser } from '@/lib/auth/session';
@@ -29,7 +30,7 @@ export async function getFinanceData(user: CurrentUser) {
       actualCost: sum('actualCost'),
       forecastCost: sum('forecastCost'),
     },
-    canApprove: user.role === 'ADMIN',
+    canApprove: hasFullAccess(user.role),
     entries: rows.map((r) => ({
       id: r.id,
       projectId: r.projectId,

@@ -3,6 +3,7 @@ import 'server-only';
 import { Prisma } from '@/generated/prisma/client';
 import type { CurrentUser } from '@/lib/auth/session';
 import { isLocalDemoMode } from '@/lib/auth/session';
+import { hasFullAccess } from '@/lib/auth/roles';
 import { prisma } from '@/lib/prisma';
 import { accessibleProjectWhere } from '@/lib/projects/access';
 import { demoProjects } from '@/lib/projects/demo-data';
@@ -36,9 +37,9 @@ export async function getProjectRegisterData(
   scope: ViewerScope = 'FINANCE',
 ): Promise<ProjectRegisterData> {
   const permissions = {
-    canCreate: user.role === 'ADMIN',
-    canAssignManager: user.role === 'ADMIN',
-    canArchive: user.role === 'ADMIN',
+    canCreate: hasFullAccess(user.role),
+    canAssignManager: hasFullAccess(user.role),
+    canArchive: hasFullAccess(user.role),
     canEdit: user.role !== 'VIEWER',
   };
 
@@ -72,7 +73,7 @@ export async function getProjectRegisterData(
         },
       },
     }),
-    user.role === 'ADMIN'
+    hasFullAccess(user.role)
       ? prisma.user.findMany({
           where: {
             isActive: true,
@@ -114,9 +115,7 @@ export async function getProjectRegisterData(
     documentsCount: project._count.documents,
     actionsCount: project._count.actionItems,
     updatedAt: project.updatedAt.toISOString(),
-    canEdit:
-      user.role === 'ADMIN' ||
-      (user.role === 'PROJECT_MANAGER' && project.projectManagerId === user.id),
+    canEdit: hasFullAccess(user.role),
   }));
 
   return {

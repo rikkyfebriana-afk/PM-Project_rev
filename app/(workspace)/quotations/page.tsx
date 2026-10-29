@@ -1,4 +1,5 @@
 import { requireUser } from '@/lib/auth/require-user';
+import { hasFullAccess } from '@/lib/auth/roles';
 import { isLocalDemoMode } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
 import { QuotationWorkspace } from '@/components/modules/quotation-workspace';
@@ -6,7 +7,7 @@ import { QuotationWorkspace } from '@/components/modules/quotation-workspace';
 export const metadata = { title: 'Quotation / SPH' };
 export default async function QuotationPage() {
   const user = await requireUser();
-  if (user.role !== 'ADMIN') return <p className="p-8">Quotation / SPH hanya dapat diakses Administrator.</p>;
+  if (!hasFullAccess(user.role)) return <p className="p-8">Quotation / SPH hanya dapat diakses Administrator atau Project Manager.</p>;
   if (isLocalDemoMode()) return <p className="p-8">Quotation / SPH memerlukan koneksi database. Mode demo hanya baca.</p>;
   const [quotes, projects] = await Promise.all([
     prisma.quotation.findMany({ orderBy: { createdAt: 'desc' }, include: { projects: { select: { id: true, code: true, customerPoNumber: true, customerPoStatus: true, poValue: true, deletedAt: true } } } }),

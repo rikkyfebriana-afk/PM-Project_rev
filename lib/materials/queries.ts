@@ -1,4 +1,5 @@
 import 'server-only';
+import { hasFullAccess } from '@/lib/auth/roles';
 
 import type { CurrentUser } from '@/lib/auth/session';
 import { isLocalDemoMode } from '@/lib/auth/session';
@@ -182,10 +183,7 @@ export async function getMaterialWorkspaceData(
     status: material.status,
     isActive: material.isActive,
     updatedAt: material.updatedAt.toISOString(),
-    canEdit:
-      user.role === 'ADMIN' ||
-      (user.role === 'PROJECT_MANAGER' &&
-        material.project.projectManagerId === user.id),
+    canEdit: hasFullAccess(user.role),
   }));
   return { demoMode: false, materials, metrics: metrics(materials) };
 }

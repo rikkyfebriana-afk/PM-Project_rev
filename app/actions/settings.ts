@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser, isLocalDemoMode } from '@/lib/auth/session';
+import { hasFullAccess } from '@/lib/auth/roles';
 import { hashPassword, verifyPassword } from '@/lib/auth/password';
 import { prisma } from '@/lib/prisma';
 import type { MutationState } from '@/lib/operations/validation';
@@ -19,10 +20,10 @@ export async function createUser(
   form: FormData,
 ): Promise<MutationState> {
   const actor = await getCurrentUser();
-  if (!actor || actor.role !== 'ADMIN' || isLocalDemoMode())
+  if (!actor || !hasFullAccess(actor.role) || isLocalDemoMode())
     return {
       status: 'error',
-      message: 'Hanya Admin yang dapat menambah akun.',
+      message: 'Hanya Admin atau Project Manager yang dapat menambah akun.',
     };
   const parsed = z
     .object({
@@ -83,7 +84,7 @@ export async function setUserActive(
   form: FormData,
 ): Promise<MutationState> {
   const actor = await getCurrentUser();
-  if (!actor || actor.role !== 'ADMIN' || isLocalDemoMode())
+  if (!actor || !hasFullAccess(actor.role) || isLocalDemoMode())
     return { status: 'error', message: 'Akses ditolak.' };
   const parsed = z
     .object({
@@ -138,10 +139,10 @@ export async function saveMembership(
   form: FormData,
 ): Promise<MutationState> {
   const actor = await getCurrentUser();
-  if (!actor || actor.role !== 'ADMIN' || isLocalDemoMode())
+  if (!actor || !hasFullAccess(actor.role) || isLocalDemoMode())
     return {
       status: 'error',
-      message: 'Akses anggota hanya dapat diatur Admin.',
+      message: 'Akses anggota hanya dapat diatur Admin atau Project Manager.',
     };
   const projectIds = form.getAll('projectIds');
   const parsed = membershipSchema.safeParse({
@@ -155,6 +156,7 @@ export async function saveMembership(
   try {
     const result=await prisma.$transaction(tx=>applyMembershipBatch(tx,parsed.data,actor.id), { timeout: 30000 });
     if(result==='ADMIN_UNCHANGED') return {status:'success',message:'Akun ADMIN sudah memiliki akses semua proyek dan PO. Tidak perlu menambahkan keanggotaan; tidak ada akses yang diubah.'};
+    if(result==='PROJECT_MANAGER_UNCHANGED') return {status:'success',message:'Akun PROJECT_MANAGER sudah memiliki akses semua proyek dan PO. Tidak perlu menambahkan keanggotaan; tidak ada akses yang diubah.'};
     revalidatePath('/', 'layout');
     return { status: 'success', message: `Akses anggota untuk ${parsed.data.projectIds.length} proyek berhasil ${parsed.data.operation === 'add' ? 'ditambahkan' : 'dicabut'}.` };
   } catch (error) {
