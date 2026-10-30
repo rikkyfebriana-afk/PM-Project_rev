@@ -655,6 +655,7 @@ export async function approveBoqRevisionAction(
 
     revalidatePath('/boq');
     revalidatePath('/materials');
+    revalidatePath('/warehouse');
     revalidatePath('/dashboard');
     return {
       status: 'success',

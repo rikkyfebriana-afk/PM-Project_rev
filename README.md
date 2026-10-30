@@ -81,6 +81,10 @@ Saat baseline baru disetujui, material dicocokkan berdasarkan kode yang dinormal
 
 Jika revisi baseline menaikkan kebutuhan, status `RECEIVED`/`INSTALLED` otomatis kembali ke `PARTIAL` bila kuantitas sebelumnya tidak lagi memenuhi kebutuhan. Pengguna juga dapat menandai `SHORTAGE` secara eksplisit ketika received quantity masih di bawah kebutuhan.
 
+## Stok Gudang
+
+Modul **Stok Gudang** (`/warehouse`) tersedia untuk Admin/Project Manager. Tambahkan SKU dan saldo awal melalui Barang masuk; pengambilan yang dikonfirmasi untuk material BoQ approved mengurangi stok dan menambah received material proyek secara atomik. Retur mengembalikan sisa barang ke gudang. Kode/satuan harus sesuai, stok tidak boleh negatif, dan percobaan ulang transaksi tidak menggandakan saldo. Lihat [panduan gudang](docs/warehouse.md).
+
 ## Production, FAT, Delivery, Site Work, dan Action Center
 
 Keempat halaman operasional kini memakai milestone PostgreSQL: buat paket pekerjaan/pemeriksaan, tetapkan PIC dan target selesai, lalu perbarui progress serta hasilnya. Milestone ini juga menjadi sumber jadwal dashboard. Progress keseluruhan project tetap ditetapkan PM di Project Register sesuai bobot pekerjaan perusahaan.

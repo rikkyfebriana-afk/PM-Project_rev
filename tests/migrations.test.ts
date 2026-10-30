@@ -65,6 +65,21 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
       db.exec(`UPDATE "BoqItem" SET "quantity"=20 WHERE "id"='i1'`),
       /immutable/,
     );
+    await db.exec(`INSERT INTO "WarehouseItem" (id,code,"normalizedCode",description,unit,quantity,"updatedAt") VALUES ('wh-db','WH-DB','WH-DB','Warehouse fixture','M',5,now());
+      INSERT INTO "Material" (id,"projectId","boqItemId",description,unit,"requiredQty","receivedQty","warehouseIssuedQty",status,"updatedAt") VALUES ('wh-db-material','legacy','i1','Warehouse material fixture','M',10,5,3,'PARTIAL',now());`);
+    await assert.rejects(db.exec(`INSERT INTO "WarehouseItem" (id,code,"normalizedCode",description,unit,"updatedAt") VALUES ('wh-duplicate','WH-DB','WH-DB','Duplicate fixture','M',now())`),/unique constraint/);
+    await assert.rejects(db.exec(`UPDATE "WarehouseItem" SET quantity=-1 WHERE id='wh-db'`),/check constraint/);
+    await assert.rejects(db.exec(`UPDATE "WarehouseItem" SET "minQty"=-1 WHERE id='wh-db'`),/check constraint/);
+    await assert.rejects(db.exec(`UPDATE "Material" SET "receivedQty"=2 WHERE id='wh-db-material'`),/check constraint/);
+    await assert.rejects(db.exec(`UPDATE "Material" SET "warehouseIssuedQty"=-1 WHERE id='wh-db-material'`),/check constraint/);
+    await db.exec(`INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-receipt','wh-db-request','fixture','viewer-test','RECEIPT',2,7,'wh-db','WH-IN-DB','Fixture keeper');`);
+    await assert.rejects(db.exec(`UPDATE "WarehouseMovement" SET quantity=3 WHERE id='wh-db-receipt'`),/immutable/);
+    await assert.rejects(db.exec(`DELETE FROM "WarehouseMovement" WHERE id='wh-db-receipt'`),/immutable/);
+    await assert.rejects(db.exec(`INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-zero','wh-db-zero','fixture','viewer-test','RECEIPT',0,7,'wh-db','WH-ZERO','Fixture keeper')`),/check constraint/);
+    await assert.rejects(db.exec(`INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-negative','wh-db-negative','fixture','viewer-test','RECEIPT',1,-1,'wh-db','WH-NEGATIVE','Fixture keeper')`),/check constraint/);
+    await assert.rejects(db.exec(`INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-duplicate','wh-db-request','fixture','viewer-test','RECEIPT',2,7,'wh-db','WH-DUPLICATE','Fixture keeper')`),/unique constraint/);
+    await assert.rejects(db.exec(`INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-invalid-issue','wh-db-invalid-issue','fixture','viewer-test','ISSUE',1,4,'wh-db','WH-OUT','Fixture keeper')`),/check constraint/);
+    await assert.rejects(db.exec(`INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient,"projectId","materialId","boqItemId") VALUES ('wh-db-foreign-issue','wh-db-foreign-issue','fixture','viewer-test','ISSUE',1,4,'wh-db','WH-OUT','Fixture keeper','p2','wh-db-material','i1')`),/foreign key constraint/);
     await assert.rejects(
       db.exec(
         `INSERT INTO "BoqItem" ("id","boqId","itemNo","description","unit","quantity","unitPrice","lineTotal") VALUES ('i2','b1','2','Cable','M',1,100,100)`,
@@ -126,9 +141,11 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
     }>(
       `SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname='public'`,
     );
-    assert.equal(security.rows.length, 16);
+    assert.equal(security.rows.length, 18);
     assert.ok(security.rows.every((row) => row.rowsecurity));
     await db.exec('SET ROLE anon');
+    await assert.rejects(db.query('SELECT * FROM public."WarehouseItem"'), /permission denied/);
+    await assert.rejects(db.query('SELECT * FROM public."WarehouseMovement"'), /permission denied/);
     await assert.rejects(db.query('SELECT * FROM public."ViewerPermission"'), /permission denied/);
     await assert.rejects(db.query('SELECT * FROM public."DailyTarget"'), /permission denied/);
     await assert.rejects(db.query('SELECT * FROM public."Quotation"'), /permission denied/);
@@ -141,6 +158,8 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
       /permission denied/,
     );
     await db.exec('RESET ROLE; SET ROLE authenticated');
+    await assert.rejects(db.query('SELECT * FROM public."WarehouseItem"'), /permission denied/);
+    await assert.rejects(db.query('SELECT * FROM public."WarehouseMovement"'), /permission denied/);
     await assert.rejects(db.query('SELECT * FROM public."ViewerPermission"'), /permission denied/);
     await assert.rejects(db.query('SELECT * FROM public."DailyTarget"'), /permission denied/);
     await assert.rejects(db.query('SELECT * FROM public."Quotation"'), /permission denied/);

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import ExcelJS from 'exceljs';
 import pg from 'pg';
 
@@ -110,8 +111,8 @@ async function compiledActionId(exportedName:string,filename:string) {
   assert.ok(action,`Compiled action ${exportedName} is missing`);
   return action[0];
 }
-async function projectActionForm(exportedName:string) {
-  const actionId=await compiledActionId(exportedName,'app/actions/projects.ts');
+async function actionStateForm(exportedName:string,filename:string) {
+  const actionId=await compiledActionId(exportedName,filename);
   const body=await form('/settings','projectIds');
   let replaced=false;
   for(const [key,value] of body){
@@ -120,6 +121,9 @@ async function projectActionForm(exportedName:string) {
   }
   assert.ok(replaced,'Action-state metadata was not found');
   return body;
+}
+async function projectActionForm(exportedName:string) {
+  return actionStateForm(exportedName,'app/actions/projects.ts');
 }
 async function approveViaHttp(input:{boqId:string;expectedApprovedBoqId:string|null}) {
   const id=await compiledActionId('approveBoqRevisionAction','app/actions/boq.ts');
@@ -152,6 +156,7 @@ try {
   assert.equal((await request('/time-plan')).status, 307);
   assert.equal((await request('/quotations')).status, 307);
   assert.equal((await request('/team-targets')).status, 307);
+  assert.equal((await request('/warehouse')).status, 307);
   const home = await login('smoke-admin');
   assert.ok(home.includes('QA-001') && home.includes('QA-002'));
   console.log('PASS login and administrator portfolio scope');
@@ -985,6 +990,119 @@ try {
     assert.equal(Number(audit.rows[0].count),300);
     console.log(`PASS PM 100-project batch grant/retry/revoke, complete audit log, and full-role no-op (${Date.now()-started}ms local)`);
   } finally {await batchDb.end();}
+
+  // Warehouse fixtures use the local test database only. No real stock is seeded.
+  await login('smoke-pm');
+  const warehouseDb=new pg.Client({connectionString:'postgresql://postgres:postgres@127.0.0.1:55432/postgres?sslmode=disable'});
+  await warehouseDb.connect();
+  try {
+    for(const [suffix,unit,required,status] of [['a','M','5','APPROVED'],['b','M','100','APPROVED'],['c','PCS','100','APPROVED'],['draft','M','100','DRAFT']]) {
+      await warehouseDb.query(`INSERT INTO "Project" (id,code,name,"updatedAt") VALUES ($1,$2,$3,now())`,[`wh-project-${suffix}`,`WH-${suffix.toUpperCase()}`,`Warehouse acceptance project ${suffix}`]);
+      await warehouseDb.query(`INSERT INTO "Boq" (id,"projectId",version,"updatedAt") VALUES ($1,$2,1,now())`,[`wh-boq-${suffix}`,`wh-project-${suffix}`]);
+      await warehouseDb.query(`INSERT INTO "BoqItem" (id,"boqId","itemNo","itemCode","itemType",description,unit,quantity,"unitPrice","lineTotal") VALUES ($1,$2,'1','WH-CABLE','MATERIAL','Warehouse cable fixture',$3,$4,10,$4::numeric*10)`,[`wh-boq-item-${suffix}`,`wh-boq-${suffix}`,unit,required]);
+      if(status==='APPROVED') await warehouseDb.query(`UPDATE "Boq" SET status='APPROVED',"approvedAt"=now() WHERE id=$1`,[`wh-boq-${suffix}`]);
+      await warehouseDb.query(`INSERT INTO "Material" (id,"projectId","boqItemId",code,"normalizedCode",description,unit,"requiredQty","updatedAt") VALUES ($1,$2,$3,'WH-CABLE','WH-CABLE','Warehouse cable fixture',$4,$5,now())`,[`wh-material-${suffix}`,`wh-project-${suffix}`,`wh-boq-item-${suffix}`,unit,required]);
+    }
+    const whAction=(name:string)=>actionStateForm(name,'app/actions/warehouse.ts');
+    const createStock=await whAction('createWarehouseItem');
+    await post('/warehouse',createStock,{code:'WH-CABLE',description:'QA warehouse cable',unit:'M',location:'QA Rack A1',minQty:'2'});
+    const stockId=String((await warehouseDb.query(`SELECT id FROM "WarehouseItem" WHERE "normalizedCode"='WH-CABLE'`)).rows[0]?.id);
+    assert.notEqual(stockId,'undefined','PM should create a warehouse SKU');
+    const balance=async(id=stockId)=>String((await warehouseDb.query(`SELECT quantity::text AS quantity FROM "WarehouseItem" WHERE id=$1`,[id])).rows[0].quantity);
+    const projectBalance=async(suffix='a')=>(await warehouseDb.query(`SELECT "receivedQty"::text AS received,"warehouseIssuedQty"::text AS issued,"installedQty"::text AS installed FROM "Material" WHERE id=$1`,[`wh-material-${suffix}`])).rows[0];
+    const movementCount=async(requestId:string)=>Number((await warehouseDb.query(`SELECT count(*) AS count FROM "WarehouseMovement" WHERE "requestId"=$1`,[requestId])).rows[0].count);
+    assert.equal(await balance(),'0.0000');
+    const receiptForm=await whAction('receiveWarehouseStock');
+    const receipt={requestId:randomUUID(),warehouseItemId:stockId,quantity:'10.5',referenceNo:'WH-IN-001',recipient:'QA warehouse keeper',notes:'Synthetic receipt'};
+    await post('/warehouse',receiptForm,receipt);
+    assert.equal(await balance(),'10.5000');
+    await post('/warehouse',receiptForm,receipt);
+    assert.equal(await balance(),'10.5000');
+    assert.equal(await movementCount(receipt.requestId),1);
+    await post('/warehouse',receiptForm,{...receipt,quantity:'10.5000'});
+    assert.equal(await balance(),'10.5000','Equivalent exact quantities should remain an idempotent retry');
+    await post('/warehouse',receiptForm,{...receipt,quantity:'11'});
+    assert.equal(await balance(),'10.5000','Same request ID with altered payload must not apply');
+    const issueForm=await whAction('issueWarehouseStock');
+    const issue={requestId:randomUUID(),warehouseItemId:stockId,materialId:'wh-material-a',quantity:'3.25',referenceNo:'WH-OUT-001',recipient:'QA site team',notes:'Synthetic issue'};
+    await login('smoke-viewer');
+    const viewerWarehouse=await(await request('/warehouse')).text();
+    assert.ok(!viewerWarehouse.includes('QA warehouse cable')&&!viewerWarehouse.includes('WH-IN-001'));
+    await post('/warehouse',receiptForm,{...receipt,requestId:randomUUID(),quantity:'1'});
+    await post('/warehouse',issueForm,issue);
+    assert.equal(await balance(),'10.5000');
+    assert.deepEqual(await projectBalance(),{received:'0.0000',issued:'0.0000',installed:'0.0000'});
+    await login('smoke-pm');
+    await post('/warehouse',issueForm,{...issue,requestId:randomUUID(),quantity:'12'});
+    assert.equal(await balance(),'10.5000','Insufficient stock must be rejected');
+    await post('/warehouse',issueForm,{...issue,requestId:randomUUID(),materialId:'wh-material-c',quantity:'1'});
+    assert.equal(await balance(),'10.5000','Unit mismatch must be rejected');
+    await post('/warehouse',issueForm,{...issue,requestId:randomUUID(),materialId:'wh-material-draft',quantity:'1'});
+    assert.equal(await balance(),'10.5000','Draft BoQ cannot consume warehouse stock');
+    await post('/warehouse',await whAction('createWarehouseItem'),{code:'WH-OTHER',description:'QA different warehouse material',unit:'M',location:'QA Rack B1',minQty:'0'});
+    const otherStock=String((await warehouseDb.query(`SELECT id FROM "WarehouseItem" WHERE "normalizedCode"='WH-OTHER'`)).rows[0].id);
+    await post('/warehouse',await whAction('receiveWarehouseStock'),{...receipt,requestId:randomUUID(),warehouseItemId:otherStock,quantity:'5',referenceNo:'WH-IN-OTHER'});
+    const simultaneousReceipt={...receipt,requestId:randomUUID(),warehouseItemId:otherStock,quantity:'1',referenceNo:'WH-IN-RETRY'};
+    const receiptRaceForms=[await whAction('receiveWarehouseStock'),await whAction('receiveWarehouseStock')];
+    await Promise.all(receiptRaceForms.map(f=>post('/warehouse',f,simultaneousReceipt)));
+    assert.equal(await movementCount(simultaneousReceipt.requestId),1);
+    assert.equal(await balance(otherStock),'6.0000','Concurrent retries must credit stock only once');
+    await post('/warehouse',issueForm,{...issue,requestId:randomUUID(),warehouseItemId:otherStock,quantity:'1'});
+    assert.equal(await balance(otherStock),'6.0000','Code mismatch must be rejected');
+    await post('/warehouse',issueForm,issue);
+    assert.equal(await balance(),'7.2500');
+    assert.deepEqual(await projectBalance(),{received:'3.2500',issued:'3.2500',installed:'0.0000'});
+    await post('/warehouse',issueForm,issue);
+    assert.equal(await balance(),'7.2500');
+    assert.equal(await movementCount(issue.requestId),1);
+    await post('/warehouse',issueForm,{...issue,requestId:randomUUID(),quantity:'2'});
+    assert.equal(await balance(),'7.2500','Issue cannot exceed remaining approved BoQ requirement');
+    const materialVersion=String((await warehouseDb.query(`SELECT to_char("updatedAt",'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS version FROM "Material" WHERE id='wh-material-a'`)).rows[0].version);
+    await post('/materials',await actionStateForm('updateMaterialAction','app/actions/materials.ts'),{id:'wh-material-a',updatedAt:materialVersion,orderedQty:'0',receivedQty:'1',installedQty:'0',supplier:'',purchaseOrderNo:'',needByDate:'',estimatedArrival:'',status:'PARTIAL'});
+    assert.equal((await projectBalance()).received,'3.2500','Manual update cannot hide warehouse-issued receipts');
+    const issueId=String((await warehouseDb.query(`SELECT id FROM "WarehouseMovement" WHERE "requestId"=$1`,[issue.requestId])).rows[0].id);
+    const returnForm=await whAction('returnWarehouseStock');
+    const returnValues={requestId:randomUUID(),issueId,quantity:'1.25',referenceNo:'WH-RET-001',recipient:'QA warehouse keeper',notes:'Unused material return'};
+    await post('/warehouse',returnForm,returnValues);
+    assert.equal(await balance(),'8.5000');
+    assert.deepEqual(await projectBalance(),{received:'2.0000',issued:'2.0000',installed:'0.0000'});
+    await post('/warehouse',returnForm,returnValues);
+    assert.equal(await balance(),'8.5000');
+    assert.equal(await movementCount(returnValues.requestId),1);
+    await post('/warehouse',returnForm,{...returnValues,requestId:randomUUID(),quantity:'2.5'});
+    assert.equal(await balance(),'8.5000','Return cannot exceed the unreturned part of its original issue');
+    await warehouseDb.query(`UPDATE "Material" SET "installedQty"=2 WHERE id='wh-material-a'`);
+    await post('/warehouse',returnForm,{...returnValues,requestId:randomUUID(),quantity:'1'});
+    assert.equal(await balance(),'8.5000','Installed material is not available for return');
+    await warehouseDb.query(`UPDATE "Material" SET "installedQty"=0 WHERE id='wh-material-a'`);
+    await post('/warehouse',returnForm,{...returnValues,requestId:randomUUID(),quantity:'2'});
+    assert.equal(await balance(),'10.5000');
+    assert.deepEqual(await projectBalance(),{received:'0.0000',issued:'0.0000',installed:'0.0000'});
+    const concurrentA={...issue,requestId:randomUUID(),materialId:'wh-material-a',quantity:'5',referenceNo:'WH-RACE-A'};
+    const concurrentB={...issue,requestId:randomUUID(),materialId:'wh-material-b',quantity:'6',referenceNo:'WH-RACE-B'};
+    const raceForms=[await whAction('issueWarehouseStock'),await whAction('issueWarehouseStock')];
+    await Promise.all([post('/warehouse',raceForms[0],concurrentA),post('/warehouse',raceForms[1],concurrentB)]);
+    const raceMovements=(await warehouseDb.query(`SELECT id,"projectId","materialId",quantity::text AS quantity FROM "WarehouseMovement" WHERE "requestId"=ANY($1::text[])`,[[concurrentA.requestId,concurrentB.requestId]])).rows;
+    assert.equal(raceMovements.length,1,'Only one competing withdrawal can spend the available stock');
+    assert.ok(['4.5000','5.5000'].includes(await balance()));
+    const historical=raceMovements[0];
+    await warehouseDb.query(`UPDATE "Project" SET status='CLOSED',phase='CLOSED',"progressPct"=100,"actualFinish"=current_date,"deletedAt"=now() WHERE id=$1`,[historical.projectId]);
+    await warehouseDb.query(`UPDATE "Material" SET "isActive"=false WHERE id=$1`,[historical.materialId]);
+    await warehouseDb.query(`UPDATE "Boq" SET status='SUPERSEDED' WHERE "projectId"=$1`,[historical.projectId]);
+    const beforeHistorical=Number(await balance());
+    await post('/warehouse',returnForm,{...returnValues,requestId:randomUUID(),issueId:String(historical.id),quantity:'1',referenceNo:'WH-RET-HISTORICAL'});
+    assert.equal(Number(await balance()),beforeHistorical+1,'Unused material can be returned after its project/BoQ is archived');
+    const issuedBefore=String((await warehouseDb.query(`SELECT "warehouseIssuedQty"::text AS issued FROM "Material" WHERE id=$1`,[historical.materialId])).rows[0].issued);
+    await post('/warehouse',issueForm,{...issue,requestId:randomUUID(),materialId:String(historical.materialId),quantity:'1'});
+    assert.equal(String((await warehouseDb.query(`SELECT "warehouseIssuedQty"::text AS issued FROM "Material" WHERE id=$1`,[historical.materialId])).rows[0].issued),issuedBefore);
+    await login('smoke-admin');
+    const adminWarehouse=await(await request('/warehouse')).text();
+    assert.ok(adminWarehouse.includes('QA warehouse cable'));
+    const beforeAdminReceipt=Number(await balance());
+    await post('/warehouse',await whAction('receiveWarehouseStock'),{...receipt,requestId:randomUUID(),quantity:'1',referenceNo:'WH-IN-ADMIN'});
+    assert.equal(Number(await balance()),beforeAdminReceipt+1);
+    console.log('PASS warehouse receipt/issue/return, exact fractional stock, BoQ linkage, retry safety, code/unit validation, history returns, Viewer denial, and concurrent stock protection');
+  } finally {await warehouseDb.end();}
   console.log('All HTTP acceptance checks passed.');
 } catch (error) {
   console.error(error instanceof Error ? error.stack : error);
