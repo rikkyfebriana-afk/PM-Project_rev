@@ -5,10 +5,12 @@ PO masuk dari customer ke PT. Arsko Sukses Bersama. Satu proyek menyimpan satu P
 ## Penggunaan
 
 1. Buat proyek di Projects bila belum ada.
-2. Buka PO Customer, cari proyek, lalu pilih Lengkapi / update PO.
-3. Isi nomor PO, customer, tanggal, pekerjaan, nilai sebelum PPN, nominal PPN sesuai dokumen, target delivery, status, dan catatan.
-4. Simpan PO Customer. Unggah PDF atau foto PO melalui Dokumen PO.
-5. Riwayat update menampilkan 10 perubahan terakhir beserta nilai sebelum/sesudah. Riwayat lengkap tetap disimpan di AuditLog.
+2. Buka PO Customer. Tampilan awal berupa tabel nomor/tanggal PO, customer, proyek, target delivery, nilai sebelum PPN, total termasuk PPN, dan status PO. Nilai Rupiah ditampilkan lengkap.
+3. Cari nomor PO, customer, atau proyek; gunakan filter status atau centang **Hanya PO yang sudah tercatat**. Proyek tanpa nomor PO tetap tersedia melalui filter **Belum dilengkapi**. Tabel dapat digeser ke samping pada layar kecil; pilihan **Kartu** membuka tampilan sebelumnya.
+4. Pilih **Detail** pada baris yang diinginkan, lalu **Lengkapi / update PO**. Tombol **Kembali ke daftar PO** mengembalikan fokus ke baris yang dipilih.
+5. Isi nomor PO, customer, tanggal, pekerjaan, nilai sebelum PPN, nominal PPN sesuai dokumen, target delivery, status, dan catatan.
+6. Simpan PO Customer. Unggah PDF atau foto PO melalui Dokumen PO.
+7. Riwayat update menampilkan 10 perubahan terakhir beserta nilai sebelum/sesudah. Riwayat lengkap tetap disimpan di AuditLog.
 
 ADMIN dan PROJECT_MANAGER dapat mengubah data dan mengunggah dokumen PO di semua proyek. Viewer hanya membaca PO dari proyek yang diizinkan. Dokumen tetap privat dan diunduh melalui endpoint terautentikasi.
 

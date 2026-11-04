@@ -107,7 +107,11 @@ async function fixtureMembershipCount(userId:string,projectIds:string[]) {
 // with the real compiled action ID to exercise the same server boundary over HTTP.
 async function compiledActionId(exportedName:string,filename:string) {
   const manifest=JSON.parse(await readFile(new URL('../.next/server/server-reference-manifest.json',import.meta.url),'utf8'));
-  const action=Object.entries(manifest.node).find(([,value])=>(value as {exportedName?:string;filename?:string}).exportedName===exportedName&&(value as {filename?:string}).filename===filename);
+  const action=Object.entries(manifest.node).find(([,value])=>{
+    const entry=value as {exportedName?:string;filename?:string};
+    const source=entry.filename?.replaceAll('\\','/');
+    return entry.exportedName===exportedName&&(source===filename||source?.endsWith(`/${filename}`));
+  });
   assert.ok(action,`Compiled action ${exportedName} is missing`);
   return action[0];
 }
