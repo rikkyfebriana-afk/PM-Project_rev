@@ -157,6 +157,7 @@ try {
   const anonymous = await request('/api/reports?type=portfolio&format=xlsx');
   assert.equal(anonymous.status, 401);
   assert.equal((await request('/customer-po')).status, 307);
+  assert.equal((await request('/invoices')).status, 307);
   assert.equal((await request('/time-plan')).status, 307);
   assert.equal((await request('/quotations')).status, 307);
   assert.equal((await request('/team-targets')).status, 307);
@@ -552,6 +553,96 @@ try {
   console.log(
     'PASS PO create/update, stale write rejection, exact revenue, audit history and Finance guard',
   );
+  const invoicePath = '/invoices';
+  const invoiceBase = {
+    projectId: 'smoke-p1',
+    number: 'QA-INV/001',
+    description: 'QA invoice first milestone',
+    issueDate: '2026-09-30',
+    dueDate: '2099-10-01',
+    sentDate: '',
+    amount: '100000.50',
+    notes: 'Isolated test only',
+  };
+  const createInvoiceForm = () => form(invoicePath, 'number', (fields) => !fields.get('invoiceId'));
+  const adminCreateInvoice = await createInvoiceForm();
+  assert.ok((await post(invoicePath, adminCreateInvoice, invoiceBase)).text.includes('Invoice tersimpan'));
+  assert.ok(!(await post(invoicePath, await createInvoiceForm(), {
+    ...invoiceBase, number: ' qa-inv/001 ',
+  })).text.includes('Invoice tersimpan'));
+
+  await login('smoke-pm');
+  assert.ok((await post(invoicePath, await createInvoiceForm(), {
+    ...invoiceBase,
+    number: 'QA-INV/002',
+    issueDate: '2025-01-01',
+    dueDate: '2025-01-05',
+    sentDate: '2025-01-02',
+    amount: '200000.25',
+  })).text.includes('Invoice tersimpan'));
+
+  async function renderedInvoiceId(status: string, number: string) {
+    const page = await request(invoicePath);
+    assert.equal(page.status, 200);
+    const row = [...(await page.text()).matchAll(/<tr\b([^>]*)>([\s\S]*?)<\/tr>/g)]
+      .find((match) => match[1].includes(`data-invoice-status="${status}"`) && match[2].includes(number));
+    const id = row?.[1].match(/data-invoice-id="([^"]+)"/)?.[1];
+    assert.ok(id, `Invoice ${number} should be ${status}`);
+    return id;
+  }
+  const invoiceId = await renderedInvoiceId('DRAFT', invoiceBase.number);
+  assert.notEqual(await renderedInvoiceId('OVERDUE', 'QA-INV/002'), invoiceId);
+  const editInvoice = () => form(invoicePath, 'number', (fields) => fields.get('invoiceId') === invoiceId);
+  const send = { ...invoiceBase, sentDate: '2026-09-30' };
+  assert.ok((await post(invoicePath, await editInvoice(), send)).text.includes('Invoice tersimpan'));
+  await renderedInvoiceId('SENT', invoiceBase.number);
+  const staleInvoiceForm = await editInvoice();
+  const paymentForm = () => form(invoicePath, 'paidDate', (fields) => fields.get('invoiceId') === invoiceId);
+  const firstPayment = await paymentForm();
+  const payment = { amount: '40000.20', paidDate: '2026-10-01', reference: 'QA-INV-PAY/001', notes: '' };
+  assert.ok((await post(invoicePath, firstPayment, payment)).text.includes('Pembayaran tercatat'));
+  assert.ok((await post(invoicePath, firstPayment, { ...payment, amount: '40000.2' })).text.includes('Pembayaran sudah tercatat'));
+  assert.ok(!(await post(invoicePath, firstPayment, { ...payment, amount: '40000.21' })).text.includes('Pembayaran tercatat'));
+  await renderedInvoiceId('PARTIAL', invoiceBase.number);
+  assert.ok(!(await post(invoicePath, staleInvoiceForm, send)).text.includes('Invoice tersimpan'));
+  assert.ok(!(await post(invoicePath, await editInvoice(), { ...send, amount: '40000.19' })).text.includes('Invoice tersimpan'));
+
+  // Either half of the race fits on its own, but posting both would overpay.
+  const racingForms = await Promise.all([paymentForm(), paymentForm()]);
+  const racingPayments = await Promise.all(racingForms.map((fields, index) =>
+    post(invoicePath, fields, {
+      ...payment, requestId: randomUUID(), amount: '60000.30', reference: `QA-INV-RACE/${index}`,
+    }),
+  ));
+  assert.equal(racingPayments.filter((response) => response.text.includes('Pembayaran tercatat')).length, 1);
+  await renderedInvoiceId('PAID', invoiceBase.number);
+
+  const voidInvoiceForm = () => form(invoicePath, 'reason', (fields) =>
+    fields.get('invoiceId') === invoiceId && !fields.get('paymentId'),
+  );
+  // The server must enforce this even when the UI omits the button for paid invoices.
+  const blockedVoid = await actionStateForm('voidInvoice', 'app/actions/invoices.ts');
+  assert.ok(!(await post(invoicePath, blockedVoid, {
+    invoiceId, updatedAt: String((await editInvoice()).get('updatedAt')), reason: 'QA cannot void with active payments',
+  })).text.includes('Invoice dibatalkan'));
+  for (let index = 0; index < 2; index++) {
+    const voidPayment = await form(invoicePath, 'reason', (fields) =>
+      fields.get('invoiceId') === invoiceId && !!fields.get('paymentId'),
+    );
+    assert.ok((await post(invoicePath, voidPayment, { reason: 'QA reverse incorrect payment' })).text.includes('Pembayaran dibatalkan'));
+  }
+  await renderedInvoiceId('SENT', invoiceBase.number);
+  assert.ok((await post(invoicePath, await voidInvoiceForm(), { reason: 'QA cancel unused invoice' })).text.includes('Invoice dibatalkan'));
+  await renderedInvoiceId('VOID', invoiceBase.number);
+
+  await login('smoke-viewer');
+  const viewerInvoices = await (await request(invoicePath)).text();
+  assert.ok(!viewerInvoices.includes(invoiceBase.number) && !viewerInvoices.includes('QA-INV/002'));
+  assert.ok(!(await post(invoicePath, adminCreateInvoice, {
+    ...invoiceBase, number: 'QA-INV/VIEWER',
+  })).text.includes('Invoice tersimpan'));
+  await login('smoke-admin');
+  console.log('PASS invoice register, same-PO invoices, status transitions, exact payments, duplicate retry, overpayment race, void, and Viewer denial');
   const sphValues = { number: 'QA-SPH/001', clientName: 'Synthetic customer', title: 'Synthetic quotation', value: '2000000', issuedDate: '2026-09-01', sentDate: '2026-09-02', validUntil: '2026-12-31', followUpDate: '2026-10-10', pic: 'QA admin', status: 'SENT', notes: 'Isolated test only' };
   const createSph = await form('/quotations', 'number', f => !f.get('id'));
   assert.ok((await post('/quotations', createSph, sphValues)).text.includes('SPH tersimpan'));

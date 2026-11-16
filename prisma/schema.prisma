@@ -122,6 +122,7 @@ model User {
   createdDailyTargets DailyTarget[]
   viewerPermissions ViewerPermission[]
   warehouseMovements WarehouseMovement[]
+  invoicePayments    InvoicePayment[]
 
   @@index([isActive])
 }
@@ -187,6 +188,7 @@ model Project {
   dailyTargets     DailyTarget[]
   warehouseMovements WarehouseMovement[]
   viewerPermissions ViewerPermission[]
+  invoices         Invoice[]
   quotationId      String?
   quotation        Quotation? @relation(fields: [quotationId], references: [id], onDelete: Restrict)
 
@@ -454,6 +456,46 @@ model CostEntry {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, spentAt])
+}
+
+model Invoice {
+  id          String           @id @default(cuid())
+  projectId   String
+  number      String
+  description String
+  issueDate   DateTime         @db.Date
+  dueDate     DateTime         @db.Date
+  sentDate    DateTime?        @db.Date
+  amount      Decimal          @db.Decimal(18, 2)
+  notes       String           @default("")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  voidedAt    DateTime?
+  voidReason  String           @default("")
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  payments    InvoicePayment[]
+
+  @@unique([projectId, number])
+  @@index([issueDate])
+}
+
+model InvoicePayment {
+  id         String    @id @default(cuid())
+  invoiceId  String
+  requestId  String    @unique
+  amount     Decimal   @db.Decimal(18, 2)
+  paidDate   DateTime  @db.Date
+  reference  String
+  notes      String    @default("")
+  actorId    String
+  createdAt  DateTime  @default(now())
+  voidedAt   DateTime?
+  voidReason String    @default("")
+  invoice    Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  actor      User      @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([invoiceId, paidDate])
+  @@index([actorId])
 }
 
 model Document {

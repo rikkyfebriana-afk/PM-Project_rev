@@ -141,9 +141,11 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
     }>(
       `SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname='public'`,
     );
-    assert.equal(security.rows.length, 18);
+    assert.equal(security.rows.length, 20);
     assert.ok(security.rows.every((row) => row.rowsecurity));
     await db.exec('SET ROLE anon');
+    await assert.rejects(db.query('SELECT * FROM public."Invoice"'), /permission denied/);
+    await assert.rejects(db.query('SELECT * FROM public."InvoicePayment"'), /permission denied/);
     await assert.rejects(db.query('SELECT * FROM public."WarehouseItem"'), /permission denied/);
     await assert.rejects(db.query('SELECT * FROM public."WarehouseMovement"'), /permission denied/);
     await assert.rejects(db.query('SELECT * FROM public."ViewerPermission"'), /permission denied/);
@@ -158,6 +160,8 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
       /permission denied/,
     );
     await db.exec('RESET ROLE; SET ROLE authenticated');
+    await assert.rejects(db.query('SELECT * FROM public."Invoice"'), /permission denied/);
+    await assert.rejects(db.query('SELECT * FROM public."InvoicePayment"'), /permission denied/);
     await assert.rejects(db.query('SELECT * FROM public."WarehouseItem"'), /permission denied/);
     await assert.rejects(db.query('SELECT * FROM public."WarehouseMovement"'), /permission denied/);
     await assert.rejects(db.query('SELECT * FROM public."ViewerPermission"'), /permission denied/);

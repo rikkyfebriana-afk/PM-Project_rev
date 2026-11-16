@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   PackageCheck,
+  ReceiptText,
   Settings,
   ShieldCheck,
   Truck,
@@ -38,11 +39,13 @@ const navigation = [
   { label: 'Delivery', href: '/delivery', icon: Truck },
   { label: 'Site Work', href: '/site-work', icon: Wrench },
   { label: 'Finance', href: '/finance', icon: BarChart3 },
+  { label: 'Status Invoice', href: '/invoices', icon: ReceiptText },
   { label: 'Reports', href: '/reports', icon: PackageCheck },
   { label: 'Action Center', href: '/actions', icon: Bell },
   { label: 'Quotation / SPH', href: '/quotations', icon: FileSpreadsheet },
   { label: 'Target Tim', href: '/team-targets', icon: ClipboardCheck },
 ];
+const fullAccessModules = new Set(['/quotations', '/warehouse', '/invoices']);
 
 type WorkspaceShellProps = {
   children: ReactNode;
@@ -52,6 +55,9 @@ type WorkspaceShellProps = {
 export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const visibleNavigation = navigation.filter(
+    (item) => !fullAccessModules.has(item.href) || hasFullAccess(user.role),
+  );
   const pageTitle =
     navigation.find(
       (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
@@ -89,7 +95,7 @@ export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
             Workspace
           </p>
           <div className="space-y-1">
-            {navigation.filter(item => !['/quotations', '/warehouse'].includes(item.href) || hasFullAccess(user.role)).map(({ label, href, icon: Icon }) => {
+            {visibleNavigation.map(({ label, href, icon: Icon }) => {
               const active =
                 pathname === href || pathname.startsWith(`${href}/`);
               return (
@@ -187,7 +193,7 @@ export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
               className="absolute right-4 top-[76px] max-h-[70vh] w-64 overflow-y-auto border border-slate-200 bg-white p-3 shadow-xl lg:hidden"
             >
               {[
-                ...navigation.filter(item => !['/quotations', '/warehouse'].includes(item.href) || hasFullAccess(user.role)),
+                ...visibleNavigation,
                 { label: 'Settings', href: '/settings', icon: Settings },
               ].map(({ label, href }) => (
                 <Link
