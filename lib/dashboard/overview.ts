@@ -6,12 +6,14 @@ import type { CurrentUser } from '@/lib/auth/session';
 import type { Prisma } from '@/generated/prisma/client';
 import { dailyAchievement } from '@/lib/team-targets/model';
 import { quotationSummary, quotationLabels, rupiah, moneyCents } from '@/lib/quotations/model';
+import { getInvoiceSummary } from '@/lib/invoices/queries';
 
 export async function getOverview(user: CurrentUser, today: Date) {
   const scope = accessibleProjectWhere(user);
   const active = { ...scope, status: 'ACTIVE' as const };
   const dailyScope: Prisma.DailyTargetWhereInput = { OR: [{ project: { is: scope } }, ...(hasFullAccess(user.role) ? [{ projectId: null }] : [])] };
-  const [daily, overdue, queue, boq, plans, milestones, documents, actions, phases, quotes] = await Promise.all([
+  const date = today.toISOString().slice(0, 10);
+  const [daily, overdue, queue, boq, plans, milestones, documents, actions, phases, quotes, invoices] = await Promise.all([
     prisma.dailyTarget.findMany({where:{AND:[dailyScope,{scheduledDate:today,status:{not:'CANCELLED'}}]},select:{targetQty:true,actualQty:true,status:true}}),
     prisma.dailyTarget.count({where:{AND:[dailyScope,{scheduledDate:{lt:today},status:{notIn:['DONE','CANCELLED']}}]}}),
     prisma.dailyTarget.findMany({where:{AND:[dailyScope,{scheduledDate:{lte:today},status:{notIn:['DONE','CANCELLED']}}]},orderBy:[{scheduledDate:'asc'},{createdAt:'asc'}],take:5,select:{id:true,title:true,pic:true,scheduledDate:true,project:{select:{code:true}}}}),
@@ -22,13 +24,14 @@ export async function getOverview(user: CurrentUser, today: Date) {
     prisma.actionItem.count({where:{project:{is:active},status:{not:'RESOLVED'}}}),
     prisma.project.groupBy({by:['phase'],where:active,_count:{_all:true}}),
     hasFullAccess(user.role)?prisma.quotation.findMany({select:{status:true,value:true,projects:{select:{id:true,code:true,customerPoNumber:true,customerPoStatus:true,poValue:true,deletedAt:true}}}}):Promise.resolve(null),
+    getInvoiceSummary(user, date),
   ]);
   const achievement=dailyAchievement(daily.map(t=>({...t,targetQty:t.targetQty.toString(),actualQty:t.actualQty.toString()})));
   const phaseCount=(phase:string)=>phases.find(p=>p.phase===phase)?._count._all??0;
   const pending=(phase:string)=>milestones.find(p=>p.phase===phase)?._count._all??0;
   const quoteRows=quotes?.map(q=>({...q,value:q.value.toFixed(2),summary:quotationSummary({...q,value:q.value.toFixed(2),projects:q.projects.map(p=>({...p,poValue:p.poValue.toFixed(2),deletedAt:p.deletedAt?.toISOString()??null}))})}));
   return {
-    date:today.toISOString().slice(0,10), achievement, overdue,
+    date, achievement, overdue, invoices,
     queue:queue.map(t=>({...t,scheduledDate:t.scheduledDate.toISOString().slice(0,10),project:t.project?.code??'Aktivitas umum'})),
     modules:[
       {label:'BoQ',value:boq.filter(b=>b.status==='APPROVED').reduce((s,b)=>s+b._count._all,0),unit:'revisi approved',note:`${boq.find(b=>b.status==='DRAFT')?._count._all??0} revisi draft`,href:'/boq'},

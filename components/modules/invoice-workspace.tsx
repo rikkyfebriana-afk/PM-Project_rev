@@ -10,6 +10,11 @@ import {
 } from '@/app/actions/invoices';
 import { exactPoMoney } from '@/lib/finance/po-summary';
 import type { InvoiceData } from '@/lib/invoices/queries';
+import {
+  invoiceStatusLabels,
+  isInvoiceStatus,
+  type InvoiceStatus,
+} from '@/lib/invoices/summary';
 import { idleState } from '@/lib/operations/validation';
 import {
   buttonClass,
@@ -24,18 +29,14 @@ import {
 type Invoice = InvoiceData['invoices'][number];
 type Payment = Invoice['payments'][number];
 
-const invoiceStatuses = {
-  DRAFT: { label: 'Draf', className: 'bg-slate-100 text-slate-700' },
-  SENT: { label: 'Terkirim', className: 'bg-sky-50 text-sky-800' },
-  PARTIAL: {
-    label: 'Dibayar sebagian',
-    className: 'bg-amber-50 text-amber-800',
-  },
-  PAID: { label: 'Lunas', className: 'bg-teal-50 text-teal-800' },
-  OVERDUE: { label: 'Lewat jatuh tempo', className: 'bg-red-50 text-red-800' },
-  VOID: { label: 'Dibatalkan', className: 'bg-slate-100 text-slate-700' },
+const invoiceStatusStyles: Record<InvoiceStatus, string> = {
+  DRAFT: 'bg-slate-100 text-slate-700',
+  SENT: 'bg-sky-50 text-sky-800',
+  PARTIAL: 'bg-amber-50 text-amber-800',
+  PAID: 'bg-teal-50 text-teal-800',
+  OVERDUE: 'bg-red-50 text-red-800',
+  VOID: 'bg-slate-100 text-slate-700',
 };
-type InvoiceStatus = keyof typeof invoiceStatuses;
 
 const dateFormat = new Intl.DateTimeFormat('id-ID', {
   day: '2-digit',
@@ -290,7 +291,7 @@ function InvoiceStatusBadge({
   invoice: Invoice;
   today: string;
 }) {
-  const status = invoiceStatuses[invoice.status as InvoiceStatus];
+  const status = invoice.status;
   const daysLate =
     (Date.parse(`${today}T00:00:00Z`) -
       Date.parse(`${invoice.dueDate}T00:00:00Z`)) /
@@ -299,9 +300,9 @@ function InvoiceStatusBadge({
   return (
     <>
       <span
-        className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${status.className}`}
+        className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${invoiceStatusStyles[status]}`}
       >
-        {status.label}
+        {invoiceStatusLabels[status]}
       </span>
       {invoice.status === 'OVERDUE' && (
         <p className="mt-1 text-xs text-red-800">
@@ -472,9 +473,15 @@ function InvoiceDetail({
   );
 }
 
-export function InvoiceWorkspace({ data }: { data: InvoiceData }) {
+export function InvoiceWorkspace({
+  data,
+  initialStatus,
+}: {
+  data: InvoiceData;
+  initialStatus?: InvoiceStatus;
+}) {
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState<InvoiceStatus | ''>(initialStatus ?? '');
   const [projectId, setProjectId] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const detailRef = useRef<HTMLElement>(null);
@@ -584,13 +591,16 @@ export function InvoiceWorkspace({ data }: { data: InvoiceData }) {
             <Field label="Filter status invoice">
               <select
                 value={status}
-                onChange={(event) => setStatus(event.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setStatus(isInvoiceStatus(value) ? value : '');
+                }}
                 className={inputClass}
               >
                 <option value="">Semua status</option>
-                {Object.entries(invoiceStatuses).map(([value, item]) => (
+                {Object.entries(invoiceStatusLabels).map(([value, label]) => (
                   <option key={value} value={value}>
-                    {item.label}
+                    {label}
                   </option>
                 ))}
               </select>

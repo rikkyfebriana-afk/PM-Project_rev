@@ -51,6 +51,7 @@ async function runInvoiceMutation(
   try {
     const message = await operation();
     revalidatePath('/invoices');
+    revalidatePath('/dashboard');
     return { status: 'success', message };
   } catch (error) {
     if (error instanceof InvoiceMutationError)

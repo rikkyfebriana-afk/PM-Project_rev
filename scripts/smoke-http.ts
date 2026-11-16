@@ -581,14 +581,44 @@ try {
     amount: '200000.25',
   })).text.includes('Invoice tersimpan'));
 
+  function renderedInvoiceRows(html: string) {
+    return [...html.matchAll(/<tr\b([^>]*)>([\s\S]*?)<\/tr>/g)]
+      .filter((row) => row[1].includes('data-invoice-status='));
+  }
+
   async function renderedInvoiceId(status: string, number: string) {
     const page = await request(invoicePath);
     assert.equal(page.status, 200);
-    const row = [...(await page.text()).matchAll(/<tr\b([^>]*)>([\s\S]*?)<\/tr>/g)]
+    const row = renderedInvoiceRows(await page.text())
       .find((match) => match[1].includes(`data-invoice-status="${status}"`) && match[2].includes(number));
     const id = row?.[1].match(/data-invoice-id="([^"]+)"/)?.[1];
     assert.ok(id, `Invoice ${number} should be ${status}`);
     return id;
+  }
+
+  function dashboardInvoiceCard(html: string, kind: 'total' | 'count', key: string) {
+    const marker = `data-invoice-${kind}="${key}"`;
+    const card = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)]
+      .find((match) => match[1].includes(marker));
+    assert.ok(card, `Dashboard invoice summary is missing ${marker}`);
+    return card;
+  }
+
+  function assertDashboardInvoices(
+    html: string,
+    totals: Record<string, string>,
+    counts: Record<string, number>,
+  ) {
+    assert.ok(html.includes('aria-labelledby="invoice-summary-heading"'));
+    for (const [key, expected] of Object.entries(totals)) {
+      const [, , body] = dashboardInvoiceCard(html, 'total', key);
+      assert.ok(body.includes(`>${expected}</p>`), `Dashboard ${key} should be ${expected}`);
+    }
+    for (const [key, expected] of Object.entries(counts)) {
+      const [, attributes, body] = dashboardInvoiceCard(html, 'count', key);
+      assert.ok(body.includes(`>${expected}</p>`), `Dashboard ${key} should count ${expected} invoices`);
+      assert.ok(attributes.includes(`href="${invoicePath}?status=${key}"`));
+    }
   }
   const invoiceId = await renderedInvoiceId('DRAFT', invoiceBase.number);
   assert.notEqual(await renderedInvoiceId('OVERDUE', 'QA-INV/002'), invoiceId);
@@ -604,6 +634,23 @@ try {
   assert.ok((await post(invoicePath, firstPayment, { ...payment, amount: '40000.2' })).text.includes('Pembayaran sudah tercatat'));
   assert.ok(!(await post(invoicePath, firstPayment, { ...payment, amount: '40000.21' })).text.includes('Pembayaran tercatat'));
   await renderedInvoiceId('PARTIAL', invoiceBase.number);
+  const paymentDashboard = await request('/dashboard');
+  assert.equal(paymentDashboard.status, 200);
+  const partialDashboard = await paymentDashboard.text();
+  assertDashboardInvoices(
+    partialDashboard,
+    { billed: 'Rp 300.000,75', paid: 'Rp 40.000,20', balance: 'Rp 260.000,55', overdue: 'Rp 200.000,25' },
+    { DRAFT: 0, SENT: 0, PARTIAL: 1, PAID: 0, OVERDUE: 1, VOID: 0 },
+  );
+  const [, overdueAttributes] = dashboardInvoiceCard(partialDashboard, 'count', 'OVERDUE');
+  const overdueLink = overdueAttributes.match(/href="([^"]+)"/)?.[1];
+  assert.ok(overdueLink);
+  const overduePage = await request(overdueLink);
+  assert.equal(overduePage.status, 200);
+  const overdueRows = renderedInvoiceRows(await overduePage.text());
+  assert.equal(overdueRows.length, 1);
+  assert.ok(overdueRows[0][1].includes('data-invoice-status="OVERDUE"'));
+  assert.ok(overdueRows[0][2].includes('QA-INV/002'));
   assert.ok(!(await post(invoicePath, staleInvoiceForm, send)).text.includes('Invoice tersimpan'));
   assert.ok(!(await post(invoicePath, await editInvoice(), { ...send, amount: '40000.19' })).text.includes('Invoice tersimpan'));
 
@@ -635,14 +682,20 @@ try {
   assert.ok((await post(invoicePath, await voidInvoiceForm(), { reason: 'QA cancel unused invoice' })).text.includes('Invoice dibatalkan'));
   await renderedInvoiceId('VOID', invoiceBase.number);
 
-  await login('smoke-viewer');
+  const viewerInvoiceDashboard = await login('smoke-viewer');
+  assert.doesNotMatch(viewerInvoiceDashboard, /invoice-summary-heading|data-invoice-(?:count|total)|\/invoices\?status=/);
   const viewerInvoices = await (await request(invoicePath)).text();
   assert.ok(!viewerInvoices.includes(invoiceBase.number) && !viewerInvoices.includes('QA-INV/002'));
   assert.ok(!(await post(invoicePath, adminCreateInvoice, {
     ...invoiceBase, number: 'QA-INV/VIEWER',
   })).text.includes('Invoice tersimpan'));
-  await login('smoke-admin');
+  assertDashboardInvoices(
+    await login('smoke-admin'),
+    { billed: 'Rp 200.000,25', paid: 'Rp 0', balance: 'Rp 200.000,25', overdue: 'Rp 200.000,25' },
+    { DRAFT: 0, SENT: 0, PARTIAL: 0, PAID: 0, OVERDUE: 1, VOID: 1 },
+  );
   console.log('PASS invoice register, same-PO invoices, status transitions, exact payments, duplicate retry, overpayment race, void, and Viewer denial');
+  console.log('PASS dashboard invoice totals and counts synchronize with payments and voids, with status links and Viewer isolation');
   const sphValues = { number: 'QA-SPH/001', clientName: 'Synthetic customer', title: 'Synthetic quotation', value: '2000000', issuedDate: '2026-09-01', sentDate: '2026-09-02', validUntil: '2026-12-31', followUpDate: '2026-10-10', pic: 'QA admin', status: 'SENT', notes: 'Isolated test only' };
   const createSph = await form('/quotations', 'number', f => !f.get('id'));
   assert.ok((await post('/quotations', createSph, sphValues)).text.includes('SPH tersimpan'));
