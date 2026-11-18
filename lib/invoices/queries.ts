@@ -87,7 +87,12 @@ export async function getInvoiceData(user: CurrentUser) {
     : await prisma.$transaction(
         [
           prisma.project.findMany({
-            where: { deletedAt: null, customerPoNumber: { not: null } },
+            where: {
+              deletedAt: null,
+              status: 'CLOSED',
+              customerPoStatus: 'COMPLETED',
+              customerPoNumber: { not: null },
+            },
             select: projectSelect,
             orderBy: { code: 'asc' },
           }),

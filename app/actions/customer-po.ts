@@ -93,6 +93,7 @@ export async function saveCustomerPo(
       '/finance',
       '/reports',
       '/quotations',
+      '/invoices',
     ])
       revalidatePath(path);
     return {

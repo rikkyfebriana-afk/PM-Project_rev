@@ -553,9 +553,29 @@ try {
   console.log(
     'PASS PO create/update, stale write rejection, exact revenue, audit history and Finance guard',
   );
+  const invoiceFixtureDb = new pg.Client({
+    connectionString: 'postgresql://postgres:postgres@127.0.0.1:55432/postgres?sslmode=disable',
+  });
+  await invoiceFixtureDb.connect();
+  try {
+    await invoiceFixtureDb.query(`
+      INSERT INTO "Project" (
+        "id", "code", "name", "clientName", "status", "phase", "progressPct", "actualFinish",
+        "customerPoNumber", "customerPoStatus", "customerPoDate", "customerPoCompletedDate", "deletedAt", "updatedAt"
+      ) VALUES
+        ('invoice-completed', 'QA-INV-CLOSED', 'Completed invoice project with full name', 'Synthetic invoice customer', 'CLOSED', 'CLOSED', 100, '2025-01-03', 'QA-PO/INV-CLOSED', 'COMPLETED', '2025-01-01', '2025-01-03', NULL, now()),
+        ('invoice-active', 'QA-INV-ACTIVE', 'Active project with completed PO', 'Synthetic invoice customer', 'ACTIVE', 'PLANNING', 50, NULL, 'QA-PO/INV-ACTIVE', 'COMPLETED', '2025-01-01', '2025-01-03', NULL, now()),
+        ('invoice-po-open', 'QA-INV-OPEN', 'Closed project with received PO', 'Synthetic invoice customer', 'CLOSED', 'CLOSED', 100, '2025-01-03', 'QA-PO/INV-OPEN', 'RECEIVED', '2025-01-01', NULL, NULL, now()),
+        ('invoice-po-progress', 'QA-INV-PROGRESS', 'Closed project with in-progress PO', 'Synthetic invoice customer', 'CLOSED', 'CLOSED', 100, '2025-01-03', 'QA-PO/INV-PROGRESS', 'IN_PROGRESS', '2025-01-01', NULL, NULL, now()),
+        ('invoice-missing-po', 'QA-INV-MISSING', 'Completed project without PO number', 'Synthetic invoice customer', 'CLOSED', 'CLOSED', 100, '2025-01-03', NULL, 'COMPLETED', '2025-01-01', '2025-01-03', NULL, now()),
+        ('invoice-archived', 'QA-INV-ARCHIVED', 'Archived completed invoice project', 'Synthetic invoice customer', 'CLOSED', 'CLOSED', 100, '2025-01-03', 'QA-PO/INV-ARCHIVED', 'COMPLETED', '2025-01-01', '2025-01-03', now(), now())
+    `);
+  } finally {
+    await invoiceFixtureDb.end();
+  }
   const invoicePath = '/invoices';
   const invoiceBase = {
-    projectId: 'smoke-p1',
+    projectId: 'invoice-completed',
     number: 'QA-INV/001',
     description: 'QA invoice first milestone',
     issueDate: '2026-09-30',
@@ -565,6 +585,23 @@ try {
     notes: 'Isolated test only',
   };
   const createInvoiceForm = () => form(invoicePath, 'number', (fields) => !fields.get('invoiceId'));
+  const invoiceChoices = await (await request(invoicePath)).text();
+  const createInvoiceHtml = forms(invoiceChoices).find((entry) =>
+    entry.html.includes('name="number"') && !entry.body.get('invoiceId'),
+  )?.html;
+  assert.ok(createInvoiceHtml);
+  assert.ok(createInvoiceHtml.includes('value="invoice-completed"'));
+  assert.ok(createInvoiceHtml.includes('Completed invoice project with full name'));
+  const ineligibleInvoiceProjects = [
+    'invoice-active', 'invoice-po-open', 'invoice-po-progress', 'invoice-missing-po', 'invoice-archived', 'smoke-p1', 'smoke-p2',
+  ];
+  for (const projectId of ineligibleInvoiceProjects) {
+    assert.ok(!createInvoiceHtml.includes(`value="${projectId}"`), `${projectId} must not be offered for new invoices`);
+    const result = await post(invoicePath, await createInvoiceForm(), {
+      ...invoiceBase, projectId, number: `QA-INV/INELIGIBLE/${projectId}`,
+    });
+    assert.ok(!result.text.includes('Invoice tersimpan'), `${projectId} must reject a tampered invoice submission`);
+  }
   const adminCreateInvoice = await createInvoiceForm();
   assert.ok((await post(invoicePath, adminCreateInvoice, invoiceBase)).text.includes('Invoice tersimpan'));
   assert.ok(!(await post(invoicePath, await createInvoiceForm(), {
@@ -621,10 +658,30 @@ try {
     }
   }
   const invoiceId = await renderedInvoiceId('DRAFT', invoiceBase.number);
+  const invoiceNameRow = renderedInvoiceRows(await (await request(invoicePath)).text())
+    .find((row) => row[1].includes(`data-invoice-id="${invoiceId}"`));
+  assert.ok(invoiceNameRow?.[2].includes('Completed invoice project with full name'));
   assert.notEqual(await renderedInvoiceId('OVERDUE', 'QA-INV/002'), invoiceId);
   const editInvoice = () => form(invoicePath, 'number', (fields) => fields.get('invoiceId') === invoiceId);
   const send = { ...invoiceBase, sentDate: '2026-09-30' };
   assert.ok((await post(invoicePath, await editInvoice(), send)).text.includes('Invoice tersimpan'));
+  await renderedInvoiceId('SENT', invoiceBase.number);
+  const reopenedInvoiceDb = new pg.Client({
+    connectionString: 'postgresql://postgres:postgres@127.0.0.1:55432/postgres?sslmode=disable',
+  });
+  await reopenedInvoiceDb.connect();
+  try {
+    await reopenedInvoiceDb.query(`
+      UPDATE "Project" SET status='ACTIVE', phase='PLANNING', "progressPct"=50, "actualFinish"=NULL, "updatedAt"=now()
+      WHERE id='invoice-completed'
+    `);
+  } finally {
+    await reopenedInvoiceDb.end();
+  }
+  assert.ok(!(await post(invoicePath, adminCreateInvoice, {
+    ...invoiceBase, number: 'QA-INV/REOPENED',
+  })).text.includes('Invoice tersimpan'));
+  // Previously recorded invoices remain available for payment and correction.
   await renderedInvoiceId('SENT', invoiceBase.number);
   const staleInvoiceForm = await editInvoice();
   const paymentForm = () => form(invoicePath, 'paidDate', (fields) => fields.get('invoiceId') === invoiceId);
@@ -694,7 +751,7 @@ try {
     { billed: 'Rp 200.000,25', paid: 'Rp 0', balance: 'Rp 200.000,25', overdue: 'Rp 200.000,25' },
     { DRAFT: 0, SENT: 0, PARTIAL: 0, PAID: 0, OVERDUE: 1, VOID: 1 },
   );
-  console.log('PASS invoice register, same-PO invoices, status transitions, exact payments, duplicate retry, overpayment race, void, and Viewer denial');
+  console.log('PASS completed-project and completed-PO eligibility, full project names, historical billing after reopening, exact payments, retry, overpayment race, void, and Viewer denial');
   console.log('PASS dashboard invoice totals and counts synchronize with payments and voids, with status links and Viewer isolation');
   const sphValues = { number: 'QA-SPH/001', clientName: 'Synthetic customer', title: 'Synthetic quotation', value: '2000000', issuedDate: '2026-09-01', sentDate: '2026-09-02', validUntil: '2026-12-31', followUpDate: '2026-10-10', pic: 'QA admin', status: 'SENT', notes: 'Isolated test only' };
   const createSph = await form('/quotations', 'number', f => !f.get('id'));

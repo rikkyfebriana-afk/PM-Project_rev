@@ -178,11 +178,15 @@ export async function saveInvoice(
           { customerPoNumber: string | null }[]
         >`
           SELECT "customerPoNumber" FROM "Project"
-          WHERE "id" = ${projectId} AND "deletedAt" IS NULL FOR UPDATE
+          WHERE "id" = ${projectId}
+            AND "deletedAt" IS NULL
+            AND "status" = 'CLOSED'
+            AND "customerPoStatus" = 'COMPLETED'
+          FOR UPDATE
         `;
         if (!project?.customerPoNumber?.trim())
           throw new InvoiceMutationError(
-            'Pilih proyek yang belum diarsipkan dan sudah memiliki nomor PO Customer.',
+            'Invoice baru hanya untuk proyek berstatus Closed dengan PO Customer berstatus Selesai dan nomor PO terisi.',
           );
       }
 

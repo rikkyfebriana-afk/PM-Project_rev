@@ -114,6 +114,7 @@ function mutationError(error: unknown): ProjectActionState {
 }
 
 function revalidateProjectViews() {
+  revalidatePath('/invoices');
   revalidatePath('/time-plan');
   revalidatePath('/customer-po');
   revalidatePath('/projects');

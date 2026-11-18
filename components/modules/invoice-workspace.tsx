@@ -94,17 +94,18 @@ function InvoiceForm({
       <fieldset disabled={pending} className="grid gap-4 md:grid-cols-2">
         {!invoice && (
           <div className="md:col-span-2">
-            <Field label="PO Customer">
+            <Field label="PO Customer / Proyek selesai">
               <select
                 name="projectId"
                 className={inputClass}
                 required
                 defaultValue=""
               >
-                <option value="">Pilih PO Customer</option>
+                <option value="">Pilih PO dari proyek yang sudah selesai</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.customerPoNumber} · {p.code} · {p.clientName || p.name}
+                    {p.customerPoNumber} · {p.code} · {p.name} ·{' '}
+                    {p.clientName || 'Customer belum diisi'}
                   </option>
                 ))}
               </select>
@@ -345,9 +346,12 @@ function InvoiceDetail({
             <h4 className="font-semibold text-[#17364a]">
               Invoice {invoice.number}
             </h4>
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold text-slate-700">
+              {invoice.project.name}
+            </p>
             <p className="mt-1 text-xs text-slate-600">
               {invoice.project.customerPoNumber} ·{' '}
-              {invoice.project.clientName || invoice.project.name} ·{' '}
+              {invoice.project.clientName || 'Customer belum diisi'} ·{' '}
               {invoice.project.code}
             </p>
           </div>
@@ -517,7 +521,7 @@ export function InvoiceWorkspace({
     <main className="mx-auto max-w-[1600px] space-y-5 p-4 pb-24 md:p-7">
       <WorkspaceIntro
         title="Status Invoice"
-        description="Pantau tagihan ke customer per PO, tanggal pengiriman, jatuh tempo, pembayaran, dan sisa tagihan. Satu PO dapat memiliki beberapa invoice untuk setiap termin."
+        description="Buat invoice setelah proyek berstatus Closed dan PO Customer berstatus Selesai. Pantau pengiriman tagihan, jatuh tempo, pembayaran, dan sisa tagihan per proyek."
         demo={data.demoMode}
       />
       <Metrics
@@ -548,7 +552,8 @@ export function InvoiceWorkspace({
         ) : (
           <section className={panelClass}>
             <p className="text-sm text-slate-600">
-              Lengkapi nomor PO di menu PO Customer untuk menambahkan invoice.
+              Invoice baru tersedia setelah proyek berstatus Closed dan PO
+              Customer berstatus Selesai serta memiliki nomor PO.
             </p>
             <Link href="/customer-po" className={`${buttonClass} mt-3`}>
               Buka PO Customer
@@ -583,7 +588,7 @@ export function InvoiceWorkspace({
                 {[...projectOptions.values()].map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.customerPoNumber || 'PO belum tercatat'} ·{' '}
-                    {project.code}
+                    {project.code} · {project.name}
                   </option>
                 ))}
               </select>
@@ -627,7 +632,7 @@ export function InvoiceWorkspace({
                     Nomor invoice
                   </th>
                   <th scope="col" className={columnClass}>
-                    PO / Customer
+                    PO / Proyek / Customer
                   </th>
                   <th scope="col" className={columnClass}>
                     Tanggal kirim
@@ -679,6 +684,9 @@ export function InvoiceWorkspace({
                       <td className={`min-w-40 max-w-[260px] ${columnClass}`}>
                         <p className="break-words font-medium">
                           {invoice.project.customerPoNumber || '—'}
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap break-words text-sm font-medium text-slate-700">
+                          {invoice.project.name}
                         </p>
                         <p className="mt-1 break-words text-xs text-slate-600">
                           {invoice.project.clientName || '—'} ·{' '}
