@@ -1,8 +1,10 @@
 'use client';
+
 import { useState } from 'react';
 import Link from 'next/link';
 import type { MonthlyPoData } from '@/lib/dashboard/po-monthly';
 import { exactPoMoney } from '@/lib/finance/po-summary';
+
 const months = [
   'Jan',
   'Feb',
@@ -17,66 +19,73 @@ const months = [
   'Nov',
   'Des',
 ];
+const moneyUnits = (value: string) => BigInt(value.replace('.', ''));
+const selectClass =
+  'h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700';
+
 export function PoMonthlyChart({ data }: { data: MonthlyPoData }) {
   const [year, setYear] = useState(data.currentYear);
   const [mode, setMode] = useState<'count' | 'value'>('count');
   const [selected, setSelected] = useState<number | null>(null);
-  const rows = (data.years.find((y) => y.year === year) ?? data.years[0])
+  const rows = (data.years.find((item) => item.year === year) ?? data.years[0])
     .months;
-  const units = (value: string) => BigInt(value.replace('.', ''));
-  const values = rows.flatMap((m) =>
+  const values = rows.flatMap((month) =>
     mode === 'count'
-      ? [BigInt(m.incomingCount), BigInt(m.completedCount)]
-      : [units(m.incomingValue), units(m.completedValue)],
+      ? [BigInt(month.incomingCount), BigInt(month.completedCount)]
+      : [moneyUnits(month.incomingValue), moneyUnits(month.completedValue)],
   );
-  const maximum = values.reduce((max, n) => (n > max ? n : max), 0n);
-  const height = (n: bigint) =>
-    maximum === 0n ? 0 : Number((n * 10000n) / maximum) / 100;
-  const row = selected === null ? null : rows[selected];
-  const label = (m: (typeof rows)[number]) =>
-    `${months[m.month - 1]} ${year}: PO Masuk ${m.incomingCount}, ${exactPoMoney(m.incomingValue)}; PO Selesai ${m.completedCount}, ${exactPoMoney(m.completedValue)}`;
+  const maximum = values.reduce(
+    (max, value) => (value > max ? value : max),
+    0n,
+  );
+  const height = (value: bigint) =>
+    maximum === 0n ? 0 : Number((value * 10000n) / maximum) / 100;
+  const selectedMonth = selected === null ? null : rows[selected];
+  const monthLabel = (month: (typeof rows)[number]) =>
+    `${months[month.month - 1]} ${year}. PO Masuk ${month.incomingCount}, ${exactPoMoney(month.incomingValue)}. PO Selesai ${month.completedCount}, ${exactPoMoney(month.completedValue)}.`;
+
   return (
     <section
-      className="min-w-0 border border-[#dde3e7] bg-white p-5 md:p-6"
       aria-label="Grafik PO bulanan"
+      className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white"
     >
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 p-5 md:px-6">
         <div>
-          <p className="section-kicker">PO Customer · Tren bulanan</p>
-          <h2 className="mt-2 text-lg font-semibold">
-            PO Masuk &amp; PO Selesai per Bulan
+          <h2 className="text-base font-semibold text-slate-900">
+            Grafik PO bulanan
           </h2>
-          <p className="mt-2 text-xs text-slate-500">
-            Seluruh proyek sesuai hak akses, termasuk proyek selesai. Nilai PO
-            tanpa PPN.
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            PO Customer masuk dan selesai sepanjang tahun · nilai sebelum PPN
           </p>
         </div>
-        <div className="flex gap-3">
-          <label className="text-xs">
+        <div className="flex w-full flex-wrap gap-3 sm:w-auto">
+          <label className="grid flex-1 gap-1.5 text-xs font-medium text-slate-600 sm:flex-none">
             Tahun
             <select
               aria-label="Tahun grafik PO"
               value={year}
-              onChange={(e) => {
-                setYear(Number(e.target.value));
+              onChange={(event) => {
+                setYear(Number(event.target.value));
                 setSelected(null);
               }}
-              className="ml-2 border bg-white p-2"
+              className={selectClass}
             >
-              {data.years.map((y) => (
-                <option key={y.year} value={y.year}>
-                  {y.year}
+              {data.years.map((item) => (
+                <option key={item.year} value={item.year}>
+                  {item.year}
                 </option>
               ))}
             </select>
           </label>
-          <label className="text-xs">
+          <label className="grid flex-1 gap-1.5 text-xs font-medium text-slate-600 sm:flex-none">
             Tampilkan
             <select
               aria-label="Ukuran grafik PO"
               value={mode}
-              onChange={(e) => setMode(e.target.value as 'count' | 'value')}
-              className="ml-2 border bg-white p-2"
+              onChange={(event) =>
+                setMode(event.target.value as 'count' | 'value')
+              }
+              className={selectClass}
             >
               <option value="count">Jumlah PO</option>
               <option value="value">Nilai PO (Rp)</option>
@@ -84,143 +93,210 @@ export function PoMonthlyChart({ data }: { data: MonthlyPoData }) {
           </label>
         </div>
       </div>
-      <div className="mt-5 flex flex-wrap gap-5 text-xs">
-        <span>
-          <span className="mr-2 inline-block size-3 bg-sky-600" />
-          PO Masuk
-        </span>
-        <span>
-          <span className="mr-2 inline-block size-3 bg-teal-600" />
-          PO Selesai
-        </span>
-        <span className="text-slate-500">
-          {mode === 'count'
-            ? 'Satuan: jumlah PO'
-            : 'Skala relatif nilai rupiah; nominal lengkap tersedia di detail'}
-        </span>
-      </div>
-      {maximum === 0n && (
-        <p className="mt-4 text-sm text-slate-500">
-          {mode === 'count'
-            ? 'Belum ada PO bertanggal pada tahun ini.'
-            : 'Nilai PO pada tahun ini masih nol.'}
-        </p>
-      )}
-      <div className="mt-4 overflow-x-auto">
+
+      <div className="p-5 md:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-5 font-medium text-slate-700">
+            <span className="inline-flex items-center gap-2">
+              <span className="size-2.5 rounded-sm bg-[#17364a]" />
+              PO masuk
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="size-2.5 rounded-sm bg-[#15977c]" />
+              PO selesai
+            </span>
+          </div>
+          <p className="text-slate-500">
+            Puncak bulanan{' '}
+            <span className="font-medium text-slate-700">
+              {mode === 'count'
+                ? `${maximum} PO`
+                : exactPoMoney(
+                    `${maximum / 100n}.${String(maximum % 100n).padStart(2, '0')}`,
+                  )}
+            </span>
+          </p>
+        </div>
+
+        {maximum === 0n && (
+          <p className="mt-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            {mode === 'count'
+              ? 'Belum ada PO bertanggal pada tahun ini.'
+              : 'Nilai PO pada tahun ini masih nol.'}
+          </p>
+        )}
+
         <div
-          className="grid min-w-[660px] grid-cols-12 gap-3 border-b border-slate-200 pt-4"
-          role="group"
-          aria-label="Batang bulanan, klik untuk detail"
+          role="region"
+          aria-label="Grafik PO per bulan, geser untuk melihat semua bulan"
+          tabIndex={0}
+          className="mt-5 overflow-x-auto rounded-lg focus-visible:outline-2 focus-visible:outline-teal-700"
         >
-          {rows.map((m, i) => {
-            const a =
+          <div
+            className="grid min-w-[660px] grid-cols-12 gap-2 border-b border-slate-200 px-1 pt-7"
+            role="group"
+            aria-label="Batang bulanan, klik untuk detail"
+          >
+            {rows.map((month, index) => {
+              const incoming =
                 mode === 'count'
-                  ? BigInt(m.incomingCount)
-                  : units(m.incomingValue),
-              b =
+                  ? BigInt(month.incomingCount)
+                  : moneyUnits(month.incomingValue);
+              const completed =
                 mode === 'count'
-                  ? BigInt(m.completedCount)
-                  : units(m.completedValue);
-            return (
-              <button
-                type="button"
-                key={m.month}
-                aria-label={label(m)}
-                title={label(m)}
-                onClick={() => setSelected(i)}
-                onFocus={() => setSelected(i)}
-                onMouseEnter={() => setSelected(i)}
-                className={`min-w-0 rounded-t px-1 pt-2 focus-visible:outline-2 focus-visible:outline-sky-700 ${selected === i ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
-              >
-                <div className="flex h-44 items-end justify-center gap-1">
-                  {[a, b].map((v, j) => (
-                    <div
-                      key={j}
-                      className={`relative w-5 rounded-t ${j === 0 ? 'bg-sky-600' : 'bg-teal-600'}`}
-                      style={{
-                        height: `${height(v)}%`,
-                        minHeight: v > 0n ? 2 : 0,
-                      }}
+                  ? BigInt(month.completedCount)
+                  : moneyUnits(month.completedValue);
+              return (
+                <button
+                  type="button"
+                  key={month.month}
+                  aria-label={monthLabel(month)}
+                  title={monthLabel(month)}
+                  aria-pressed={selected === index}
+                  onClick={() => setSelected(index)}
+                  onFocus={() => setSelected(index)}
+                  onMouseEnter={() => setSelected(index)}
+                  className={`min-w-0 rounded-t-lg px-1 pt-2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-700 ${selected === index ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
+                >
+                  <div className="flex h-44 items-end justify-center gap-1.5">
+                    {[incoming, completed].map((value, series) => (
+                      <div
+                        key={series}
+                        className={`relative w-4 rounded-t-sm sm:w-5 ${series === 0 ? 'bg-[#17364a]' : 'bg-[#15977c]'}`}
+                        style={{
+                          height: `${height(value)}%`,
+                          minHeight: value > 0n ? 3 : 0,
+                        }}
+                      >
+                        {mode === 'count' && value > 0n && (
+                          <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs font-medium tabular-nums text-slate-700">
+                            {String(value)}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <span className="my-3 block text-xs font-medium text-slate-600">
+                    {months[month.month - 1]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div
+          role="status"
+          aria-live="polite"
+          className="mt-4 min-h-[88px] rounded-lg border border-slate-100 bg-slate-50 p-4"
+        >
+          {selectedMonth ? (
+            <>
+              <p className="text-xs font-semibold text-slate-600">
+                {months[selectedMonth.month - 1]} {year}
+              </p>
+              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                <p className="text-sm text-slate-700">
+                  <span className="font-semibold text-[#17364a]">
+                    {selectedMonth.incomingCount} PO masuk
+                  </span>
+                  <span className="mt-0.5 block break-words font-mono text-xs">
+                    {exactPoMoney(selectedMonth.incomingValue)}
+                  </span>
+                </p>
+                <p className="text-sm text-slate-700">
+                  <span className="font-semibold text-[#15977c]">
+                    {selectedMonth.completedCount} PO selesai
+                  </span>
+                  <span className="mt-0.5 block break-words font-mono text-xs">
+                    {exactPoMoney(selectedMonth.completedValue)}
+                  </span>
+                </p>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm leading-6 text-slate-500">
+              Sorot atau pilih bulan untuk melihat jumlah dan nominal PO secara
+              lengkap.
+            </p>
+          )}
+        </div>
+
+        {(data.missingCompleted > 0 || data.missingIncoming > 0) && (
+          <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+            Pada seluruh tahun, {data.missingIncoming} PO belum memiliki tanggal
+            PO dan {data.missingCompleted} PO selesai belum memiliki tanggal
+            selesai.{' '}
+            <Link
+              href="/customer-po"
+              className="font-semibold underline underline-offset-2"
+            >
+              Lengkapi tanggal di PO Customer
+            </Link>{' '}
+            agar tercatat pada grafik bulanan.
+          </p>
+        )}
+
+        <details className="mt-4 border-t border-slate-100 pt-4">
+          <summary className="cursor-pointer text-sm font-semibold text-[#17364a]">
+            Lihat tabel angka bulanan
+          </summary>
+          <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
+            <table className="w-full min-w-[600px] text-left text-xs">
+              <caption className="sr-only">
+                Rincian jumlah dan nilai PO Customer setiap bulan pada tahun{' '}
+                {year}
+              </caption>
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  {[
+                    'Bulan',
+                    'Masuk (PO)',
+                    'Nilai masuk',
+                    'Selesai (PO)',
+                    'Nilai selesai',
+                  ].map((title) => (
+                    <th
+                      key={title}
+                      scope="col"
+                      className="px-3 py-3 font-semibold"
                     >
-                      {mode === 'count' && v > 0n && (
-                        <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[10px] text-slate-600">
-                          {String(v)}
-                        </span>
-                      )}
-                    </div>
+                      {title}
+                    </th>
                   ))}
-                </div>
-                <span className="my-3 block text-xs text-slate-600">
-                  {months[i]}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      <p className="mt-4 min-h-8 text-sm" role="status">
-        {row
-          ? label(row)
-          : 'Sorot atau klik bulan untuk melihat jumlah dan nominal PO.'}
-      </p>
-      {(data.missingCompleted > 0 || data.missingIncoming > 0) && (
-        <p className="mt-3 border-l-4 border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">
-          Data belum lengkap (semua tahun): {data.missingIncoming} PO tanpa
-          tanggal PO; {data.missingCompleted} PO Selesai tanpa tanggal selesai.
-          Belum dimasukkan ke seri bulan terkait.{' '}
-          <Link href="/customer-po" className="underline">
-            Lengkapi di PO Customer
-          </Link>
-          .
-        </p>
-      )}
-      <details className="mt-3">
-        <summary className="cursor-pointer text-sm font-semibold">
-          Lihat tabel angka bulanan
-        </summary>
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[600px] text-left text-xs">
-            <thead>
-              <tr>
-                {[
-                  'Bulan',
-                  'Masuk (PO)',
-                  'Nilai masuk',
-                  'Selesai (PO)',
-                  'Nilai selesai',
-                ].map((t) => (
-                  <th key={t} className="border-b p-2">
-                    {t}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((m) => (
-                <tr key={m.month}>
-                  <th className="border-b p-2">{months[m.month - 1]}</th>
-                  <td className="border-b p-2">{m.incomingCount}</td>
-                  <td className="border-b p-2">
-                    {exactPoMoney(m.incomingValue)}
-                  </td>
-                  <td className="border-b p-2">{m.completedCount}</td>
-                  <td className="border-b p-2">
-                    {exactPoMoney(m.completedValue)}
-                  </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </details>
-      <p className="mt-4 text-xs leading-5 text-slate-500">
-        Masuk memakai tanggal pada PO Customer; Selesai memakai tanggal selesai
-        PO. Satu PO dihitung satu kali pada masing-masing seri, bukan
-        dijumlahkan sebagai PO baru. Draft, Cancelled, dan PO tanpa nomor
-        dikecualikan ({data.excluded} proyek). Grafik memakai status dan nilai
-        PO terbaru; koreksi atau pembukaan kembali PO akan memperbarui grafik.
-        Bukan grafik pembayaran.
-      </p>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {rows.map((month) => (
+                  <tr key={month.month}>
+                    <th scope="row" className="px-3 py-3 font-medium">
+                      {months[month.month - 1]}
+                    </th>
+                    <td className="px-3 py-3 tabular-nums">
+                      {month.incomingCount}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 font-mono">
+                      {exactPoMoney(month.incomingValue)}
+                    </td>
+                    <td className="px-3 py-3 tabular-nums">
+                      {month.completedCount}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 font-mono">
+                      {exactPoMoney(month.completedValue)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-slate-500">
+            PO masuk mengikuti tanggal PO Customer. PO selesai mengikuti tanggal
+            selesai PO. Grafik menggunakan status dan nilai PO terbaru, termasuk
+            koreksi atau pembukaan kembali PO. Draft, Cancelled, dan PO tanpa
+            nomor dikecualikan ({data.excluded} proyek).
+          </p>
+        </details>
+      </div>
     </section>
   );
 }

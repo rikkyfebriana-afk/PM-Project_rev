@@ -34,7 +34,7 @@ export default function ProjectMapInner({
   onSelect: (projectId: string) => void;
 }) {
   return (
-    <div className="relative h-[370px] overflow-hidden">
+    <div className="relative isolate h-[370px] overflow-hidden">
       <MapContainer
         center={[-6.65, 109.8]}
         zoom={7}
@@ -80,7 +80,7 @@ export default function ProjectMapInner({
           </Marker>
         ))}
       </MapContainer>
-      <div className="pointer-events-none absolute bottom-4 left-5 z-[500] flex items-center gap-4 bg-white/95 px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#687680] shadow-sm ring-1 ring-[#d8e0e4]">
+      <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[500] flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-white/95 px-3 py-2 text-xs font-semibold text-[#687680] shadow-sm ring-1 ring-[#d8e0e4]">
         <span className="flex items-center gap-1.5">
           <i className="size-2 rounded-full bg-[#1c9377]" /> On track
         </span>

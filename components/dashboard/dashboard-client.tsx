@@ -1,31 +1,96 @@
 'use client';
-import { dashboardCategoryHref } from '@/lib/dashboard/categories';
-import { PoMonthlyChart } from './po-monthly-chart';
-import { OverviewSummary } from './overview-summary';
 
 import {
   AlertTriangle,
   ArrowUpRight,
   CalendarDays,
-  Clock3,
   Download,
   Filter,
-  MoreHorizontal,
-  PackageCheck,
+  MapPin,
   Search,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ProjectMap } from '@/components/map/project-map';
 import { buildCsv } from '@/lib/csv';
+import { dashboardCategoryHref } from '@/lib/dashboard/categories';
 import type {
   DashboardData,
+  DashboardHealth,
   DashboardHealthFilter,
   DashboardProject,
 } from '@/lib/dashboard/types';
+import { OverviewSummary } from './overview-summary';
+import { PoMonthlyChart } from './po-monthly-chart';
+
+const healthLabels: Record<DashboardHealthFilter, string> = {
+  All: 'Semua',
+  'On track': 'On track',
+  Attention: 'Perhatian',
+  Critical: 'Kritis',
+};
+const statusLabels: Record<string, string> = {
+  Active: 'Proyek aktif',
+  'On track': 'On track',
+  Attention: 'Perlu perhatian',
+  Critical: 'Kritis',
+  Closed: 'Proyek selesai',
+};
+const statusNotes: Record<string, string> = {
+  Active: 'Seluruh proyek yang sedang berjalan',
+  'On track': 'Proyek aktif dengan kondisi baik',
+  Attention: 'Memerlukan tindak lanjut tim',
+  Critical: 'Memerlukan penanganan segera',
+  Closed: 'Pekerjaan proyek sudah selesai',
+};
+const statusTones = {
+  navy: 'border-t-[#17364a]',
+  green: 'border-t-teal-600',
+  amber: 'border-t-amber-400',
+  red: 'border-t-red-500',
+  slate: 'border-t-slate-400',
+};
+const financeLabels: Record<string, string> = {
+  'PO Value': 'Nilai PO',
+  Budget: 'Budget',
+  Actual: 'Biaya aktual',
+  Forecast: 'Perkiraan biaya',
+  Margin: 'Perkiraan GM',
+};
+const alertLabels: Record<string, string> = {
+  'Material shortage': 'Kekurangan material',
+  'Delayed project': 'Proyek terlambat',
+  'FAT punch list': 'Punch list FAT',
+  'Budget risk': 'Risiko budget',
+};
+const focusClass =
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700';
+const panelClass = 'min-w-0 rounded-xl border border-slate-200 bg-white';
+
+function formatPercent(value: number) {
+  return `${Number.isInteger(value) ? value : value.toFixed(1)}%`;
+}
+
+function translatedNote(note: string) {
+  return note
+    .replace('Active portfolio', 'Nilai proyek aktif')
+    .replace('Forecast gross margin', 'Margin berdasarkan perkiraan biaya')
+    .replace('% of PO', '% dari nilai PO')
+    .replace('% used', '% budget terpakai')
+    .replace(/ under$/, ' di bawah budget')
+    .replace(/ over$/, ' di atas budget')
+    .replace(' projects impacted', ' proyek terdampak')
+    .replace('Avg. ', 'Rata-rata ')
+    .replace(' days behind', ' hari terlambat')
+    .replace('No overdue projects', 'Tidak ada proyek terlambat')
+    .replace(' open action items', ' tindak lanjut terbuka')
+    .replace(
+      'Forecast at or over 95%',
+      'Perkiraan biaya mencapai minimal 95% budget',
+    );
+}
 
 function filterProjects(
   projects: DashboardProject[],
@@ -33,18 +98,28 @@ function filterProjects(
   health: DashboardHealthFilter,
 ) {
   const needle = query.trim().toLowerCase();
-  return projects.filter((project) => {
-    const matchesText =
-      !needle ||
+  return projects.filter(
+    (project) =>
       [project.id, project.name, project.city, project.phase].some((value) =>
         value.toLowerCase().includes(needle),
-      );
-    return matchesText && (health === 'All' || project.health === health);
-  });
+      ) &&
+      (health === 'All' || project.health === health),
+  );
 }
 
-function formatPercent(value: number) {
-  return `${Number.isInteger(value) ? value : value.toFixed(1)}%`;
+function HealthBadge({ health }: { health: DashboardHealth }) {
+  const styles = {
+    'On track': 'bg-teal-50 text-teal-800 ring-teal-600/15',
+    Attention: 'bg-amber-50 text-amber-900 ring-amber-500/20',
+    Critical: 'bg-red-50 text-red-800 ring-red-500/15',
+  };
+  return (
+    <span
+      className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${styles[health]}`}
+    >
+      {healthLabels[health]}
+    </span>
+  );
 }
 
 type ModelContextApi = {
@@ -78,13 +153,23 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     () => filterProjects(projects, searchTerm, healthFilter),
     [projects, searchTerm, healthFilter],
   );
+  const selected = projects.find((project) => project.id === selectedProject);
+  const businessDate = data.overview?.date;
+  const dateLabel = businessDate
+    ? new Intl.DateTimeFormat('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC',
+      }).format(new Date(`${businessDate}T00:00:00Z`))
+    : '';
 
   useEffect(() => {
     const modelContext = (
       document as Document & { modelContext?: ModelContextApi }
     ).modelContext;
     if (!modelContext?.registerTool) return;
-
     const lifecycle = new AbortController();
     const registration = modelContext.registerTool(
       {
@@ -162,9 +247,10 @@ export function DashboardClient({ data }: { data: DashboardData }) {
       project.health,
       formatPercent(project.gm),
     ]);
-    const csv = buildCsv([header, ...rows]);
     const url = URL.createObjectURL(
-      new Blob([csv], { type: 'text/csv;charset=utf-8' }),
+      new Blob([buildCsv([header, ...rows])], {
+        type: 'text/csv;charset=utf-8',
+      }),
     );
     const anchor = document.createElement('a');
     anchor.href = url;
@@ -173,265 +259,389 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     URL.revokeObjectURL(url);
   }
 
+  function resetFilters() {
+    setSearchTerm('');
+    setHealthFilter('All');
+    setSelectedProject(null);
+  }
+
   return (
-    <main className="mx-auto max-w-[1600px] space-y-6 p-4 pb-24 md:p-7 xl:p-9 lg:pb-9">
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#83909c]" />
-        <Input
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          aria-label="Search projects"
-          placeholder="Search project, city, or phase..."
-          className="h-11 border-[#dce2e6] bg-white pl-9 text-xs shadow-none"
-        />
-      </div>
-      <section aria-labelledby="portfolio-heading">
-        <div className="mb-3 flex items-end justify-between">
+    <main className="mx-auto min-w-0 max-w-[1680px] space-y-7 p-4 pb-24 md:p-6 lg:pb-8 xl:px-8">
+      <header className="space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="section-kicker">Portfolio pulse</p>
-            <h2 id="portfolio-heading" className="section-title">
-              Current project health
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700">
+              Project Control Center
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">
+              Ringkasan proyek
             </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Pantau kondisi proyek, penagihan, dan prioritas tim dalam satu
+              halaman.
+            </p>
           </div>
-          <p className="hidden text-[11px] text-[#7c8994] sm:block">
-            {data.demoMode ? 'Demo snapshot' : 'Live PostgreSQL data'}
+          <div className="flex flex-col gap-2 sm:items-end">
+            <p className="flex items-center gap-2 text-xs text-slate-600">
+              <CalendarDays className="size-4" aria-hidden="true" />
+              {data.demoMode
+                ? 'Mode demo'
+                : dateLabel || 'Data terbaru saat halaman dibuka'}
+            </p>
+            <div className="flex gap-2">
+              <Link
+                href="/customer-po"
+                className={`rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 ${focusClass}`}
+              >
+                PO Customer
+              </Link>
+              <Link
+                href="/invoices"
+                className={`rounded-lg bg-[#17364a] px-3 py-2 text-xs font-semibold text-white hover:bg-[#24536b] ${focusClass}`}
+              >
+                Status Invoice{' '}
+                <ArrowUpRight
+                  className="ml-1 inline size-3.5"
+                  aria-hidden="true"
+                />
+              </Link>
+            </div>
+          </div>
+        </div>
+        <nav
+          aria-label="Bagian Dashboard"
+          className="flex flex-wrap gap-2 border-b border-slate-200 pb-4"
+        >
+          {[
+            ['#portfolio-heading', 'Kondisi proyek'],
+            ['#priorities-heading', 'Prioritas'],
+            ['#commercial-heading', 'Keuangan & PO'],
+            ['#operations-heading', 'Operasional'],
+            ['#locations-heading', 'Lokasi & milestone'],
+            ['#portfolio-table', 'Daftar proyek'],
+          ].map(([href, label]) => (
+            <a
+              key={href}
+              href={href}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white hover:text-[#17364a] ${focusClass}`}
+            >
+              {label}
+            </a>
+          ))}
+        </nav>
+      </header>
+
+      <section aria-labelledby="portfolio-heading" className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2
+            id="portfolio-heading"
+            className="scroll-mt-28 text-base font-semibold text-slate-900"
+          >
+            Kondisi proyek
+          </h2>
+          <p className="text-xs text-slate-500">
+            Pilih kategori untuk membuka daftar site
           </p>
         </div>
-        <div className="grid overflow-hidden border border-[#dde3e7] bg-white sm:grid-cols-2 xl:grid-cols-5">
-          {portfolioStatus.map((item, index) => (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          {portfolioStatus.map((item) => (
             <Link
               key={item.label}
               href={dashboardCategoryHref(item.label)}
               aria-label={`Lihat daftar site ${item.label}`}
-              className={`status-card relative block p-5 transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-700 ${index > 0 ? 'xl:border-l xl:border-[#e5e9ec]' : ''}`}
+              className={`${panelClass} border-t-[3px] p-4 transition hover:shadow-sm ${focusClass} ${statusTones[item.tone]} ${item.label === 'Closed' ? 'col-span-2 lg:col-span-1' : ''}`}
             >
-              <span className={`status-accent status-${item.tone}`} />
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#74828d]">
-                    {item.label}
-                  </p>
-                  <p className="mt-3 font-mono text-[29px] font-semibold leading-none tracking-[-0.04em] text-[#132738]">
-                    {item.value}
-                  </p>
-                </div>
-                <span className={`status-dot dot-${item.tone}`} />
-              </div>
-              <p className="mt-3 text-[11px] text-[#8a969f]">{item.note}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section aria-labelledby="commercial-heading">
-        <div className="mb-3">
-          <p className="section-kicker">Commercial overview</p>
-          <h2 id="commercial-heading" className="section-title">
-            Financial position
-          </h2>
-        </div>
-        <div className="grid gap-px overflow-hidden border border-[#183446] bg-[#183446] sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-          {finance.map((item) => (
-            <article
-              key={item.label}
-              className="min-w-0 bg-[#163044] p-5 text-white"
-            >
-              <p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-white/46">
-                {item.label}
-              </p>
-              <div className="mt-3 flex flex-wrap items-end justify-between gap-2">
-                <p
-                  className="min-w-0 break-words font-mono text-[20px] font-semibold tabular-nums tracking-[-0.04em]"
-                  title={item.value}
-                >
-                  {item.value}
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-slate-600">
+                  {statusLabels[item.label] || item.label}
                 </p>
-                <span
-                  className={
-                    item.direction === 'up'
-                      ? 'text-[#6bd0b4]'
-                      : item.direction === 'down'
-                        ? 'text-[#ff8b76]'
-                        : 'text-white/50'
-                  }
-                >
-                  {item.direction === 'up'
-                    ? '↗'
-                    : item.direction === 'down'
-                      ? '↘'
-                      : '•'}
-                </span>
+                <ArrowUpRight
+                  className="size-3.5 shrink-0 text-slate-400"
+                  aria-hidden="true"
+                />
               </div>
-              <p
-                className={`mt-2 text-[10px] ${item.direction === 'up' ? 'text-[#6bd0b4]' : item.direction === 'down' ? 'text-[#ff8b76]' : 'text-white/45'}`}
-              >
-                {item.change}
+              <p className="mt-3 font-mono text-3xl font-semibold leading-none tabular-nums text-slate-900">
+                {item.value}
               </p>
-            </article>
+              <p className="mt-3 text-xs leading-5 text-slate-500">
+                {statusNotes[item.label] || item.note}
+              </p>
+            </Link>
           ))}
         </div>
-      </section>
-
-      {data.monthlyPo && <PoMonthlyChart data={data.monthlyPo} />}
-      <OverviewSummary data={data} />
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(330px,0.75fr)]">
-        <article className="border border-[#dde3e7] bg-white">
-          <div className="flex items-start justify-between border-b border-[#e5e9ec] px-5 py-4 md:px-6">
-            <div>
-              <p className="section-kicker">Live footprint</p>
-              <h2 className="section-title">Project location map</h2>
-            </div>
-            <Link
-              href="/projects"
-              className="text-[11px] font-semibold text-[#d85832] hover:underline"
-            >
-              View all locations
-            </Link>
-          </div>
-          <ProjectMap
-            projects={mapProjects}
-            onSelect={(projectId) => {
-              const project = projects.find((item) => item.id === projectId);
-              setSearchTerm(project?.city ?? '');
-              setSelectedProject(projectId);
-              document
-                .getElementById('portfolio-table')
-                ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }}
-          />
-        </article>
-
-        <article className="border border-[#dde3e7] bg-white">
-          <div className="flex items-start justify-between border-b border-[#e5e9ec] px-5 py-4">
-            <div>
-              <p className="section-kicker text-[#d85832]!">Priority queue</p>
-              <h2 className="section-title">Action required</h2>
-            </div>
-            <div className="grid size-9 place-items-center bg-[#fff0eb] text-[#d85832]">
-              <AlertTriangle className="size-4" />
-            </div>
-          </div>
-          <div className="divide-y divide-[#edf0f2]">
-            {alerts.map((alert) => (
-              <Link
-                key={alert.title}
-                href={dashboardCategoryHref(alert.title)}
-                aria-label={`Lihat daftar site ${alert.title}`}
-                className="group flex w-full items-center gap-3 px-5 py-[17px] text-left transition hover:bg-[#f8fafb] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-700"
-              >
-                <span
-                  className={`h-8 w-1 shrink-0 ${alert.tone === 'red' ? 'bg-[#e35645]' : 'bg-[#e4a23a]'}`}
-                />
-                <span className="min-w-0 flex-1">
-                  <strong className="block truncate text-[12px] font-semibold text-[#263746]">
-                    {alert.title}
-                  </strong>
-                  <small className="mt-1 block text-[10px] text-[#8b969f]">
-                    {alert.detail}
-                  </small>
-                </span>
-                <span
-                  className={`grid size-8 place-items-center rounded-full font-mono text-xs font-bold ${alert.tone === 'red' ? 'bg-[#fff0ed] text-[#d94f3e]' : 'bg-[#fff7e8] text-[#c98825]'}`}
-                >
-                  {alert.count}
-                </span>
-                <span className="text-[#9ba5ad] transition group-hover:translate-x-0.5">
-                  ›
-                </span>
-              </Link>
-            ))}
-          </div>
-          <div className="m-5 flex items-center gap-3 bg-[#f1f5f6] p-3 text-[10px] text-[#687681]">
-            <Clock3 className="size-4 text-[#17364a]" />
-            <Link href="/actions" className="underline">
-              Lihat temuan dan tindak lanjut di Action Center.
-            </Link>
-          </div>
-        </article>
       </section>
 
       <section
-        aria-labelledby="milestone-heading"
-        className="border border-[#dde3e7] bg-white"
+        aria-labelledby="priorities-heading"
+        className={`${panelClass} p-5`}
       >
-        <div className="flex items-start justify-between border-b border-[#e5e9ec] px-5 py-4 md:px-6">
-          <div>
-            <p className="section-kicker">Next 30 days</p>
-            <h2 id="milestone-heading" className="section-title">
-              Upcoming milestones
-            </h2>
-          </div>
-          <div className="hidden items-center gap-2 text-[10px] font-medium text-[#74818b] sm:flex">
-            <CalendarDays className="size-3.5" /> {milestones.length} key dates
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2
+            id="priorities-heading"
+            className="flex scroll-mt-28 items-center gap-2 text-base font-semibold text-slate-900"
+          >
+            <AlertTriangle
+              className="size-4 text-[#d85832]"
+              aria-hidden="true"
+            />
+            Prioritas tindak lanjut
+          </h2>
+          <Link
+            href="/actions"
+            className={`text-xs font-semibold text-teal-800 hover:underline ${focusClass}`}
+          >
+            Buka Action Center →
+          </Link>
         </div>
-        <div className="grid md:grid-cols-2 xl:grid-cols-4">
-          {milestones.length === 0 && (
-            <p className="p-6 text-sm text-slate-500">
-              Belum ada milestone dalam 30 hari ke depan.
-            </p>
-          )}
-          {milestones.map((milestone, index) => (
-            <article
-              key={milestone.label}
-              className={`group relative flex min-h-[118px] items-center gap-4 p-5 md:p-6 ${index > 0 ? 'xl:border-l xl:border-[#e6eaed]' : ''} ${index > 1 ? 'md:border-t xl:border-t-0' : ''}`}
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {alerts.map((alert) => (
+            <Link
+              key={alert.title}
+              href={dashboardCategoryHref(alert.title)}
+              aria-label={`Lihat daftar site ${alert.title}`}
+              className={`min-w-0 rounded-lg border p-4 ${focusClass} ${alert.count > 0 ? (alert.tone === 'red' ? 'border-red-100 bg-red-50/60 hover:bg-red-50' : 'border-amber-100 bg-amber-50/60 hover:bg-amber-50') : 'border-slate-100 bg-slate-50 hover:bg-slate-100'}`}
             >
-              <div
-                className={`grid size-14 shrink-0 place-items-center border text-center ${milestone.state === 'risk' ? 'border-[#f0c8bf] bg-[#fff4f1] text-[#ce5638]' : 'border-[#dce3e7] bg-[#f4f7f8] text-[#17364a]'}`}
-              >
-                <span>
-                  <strong className="block font-mono text-lg leading-none">
-                    {milestone.day}
-                  </strong>
-                  <small className="mt-1 block text-[8px] font-bold uppercase tracking-[0.15em]">
-                    {milestone.month}
-                  </small>
-                </span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start gap-2">
-                  <h3 className="truncate text-[12px] font-semibold text-[#253846]">
-                    {milestone.label}
-                  </h3>
-                  {milestone.state === 'risk' && (
-                    <AlertTriangle className="mt-0.5 size-3 shrink-0 text-[#d85832]" />
-                  )}
-                </div>
-                <p className="mt-2 truncate text-[10px] text-[#87939c]">
-                  {milestone.meta}
-                </p>
-                <p
-                  className={`mt-3 text-[9px] font-semibold uppercase tracking-[0.12em] ${milestone.state === 'risk' ? 'text-[#d85832]' : 'text-[#1a8970]'}`}
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-slate-800">
+                  {alertLabels[alert.title] || alert.title}
+                </h3>
+                <strong
+                  className={`font-mono text-2xl tabular-nums ${alert.count > 0 ? (alert.tone === 'red' ? 'text-red-700' : 'text-amber-800') : 'text-slate-500'}`}
                 >
-                  {milestone.state === 'risk' ? 'At risk' : 'On schedule'}
-                </p>
+                  {alert.count}
+                </strong>
               </div>
-              <ArrowUpRight className="size-4 text-[#b1bac0] transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[#17364a]" />
+              <p className="mt-2 text-xs leading-5 text-slate-600">
+                {translatedNote(alert.detail)}
+              </p>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section aria-labelledby="commercial-heading" className="space-y-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h2
+              id="commercial-heading"
+              className="scroll-mt-28 text-lg font-semibold text-slate-900"
+            >
+              Keuangan &amp; PO Customer
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Posisi keuangan proyek aktif, status PO, dan pembayaran customer.
+            </p>
+          </div>
+          <Link
+            href="/finance"
+            className={`text-xs font-semibold text-teal-800 hover:underline ${focusClass}`}
+          >
+            Buka Finance →
+          </Link>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {finance.map((item) => (
+            <article
+              key={item.label}
+              className={`min-w-0 rounded-xl bg-[#17364a] p-4 text-white ${item.label === 'Margin' ? 'sm:col-span-2 xl:col-span-1' : ''}`}
+            >
+              <h3 className="text-xs font-medium text-slate-200">
+                {financeLabels[item.label] || item.label}
+              </h3>
+              <p
+                className="mt-3 break-words font-mono text-xl font-semibold leading-7 tabular-nums tracking-tight"
+                title={item.value}
+              >
+                {item.value}
+              </p>
+              <p
+                className={`mt-2 text-xs leading-5 ${item.direction === 'down' ? 'text-red-200' : 'text-slate-300'}`}
+              >
+                {translatedNote(item.change)}
+              </p>
             </article>
           ))}
+        </div>
+        <OverviewSummary data={data} section="commercial" />
+        {data.monthlyPo && <PoMonthlyChart data={data.monthlyPo} />}
+      </section>
+
+      <section aria-labelledby="operations-heading" className="space-y-4">
+        <div>
+          <h2
+            id="operations-heading"
+            className="scroll-mt-28 text-lg font-semibold text-slate-900"
+          >
+            Operasional &amp; aktivitas tim
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Pencapaian harian dan pekerjaan yang memerlukan tindak lanjut.
+          </p>
+        </div>
+        <OverviewSummary data={data} section="operations" />
+      </section>
+
+      <section aria-labelledby="locations-heading" className="space-y-4">
+        <h2
+          id="locations-heading"
+          className="scroll-mt-28 text-lg font-semibold text-slate-900"
+        >
+          Lokasi &amp; milestone proyek
+        </h2>
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+          <article className={`${panelClass} overflow-hidden`}>
+            <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 p-5">
+              <div>
+                <h3 className="flex items-center gap-2 font-semibold text-slate-900">
+                  <MapPin className="size-4 text-teal-700" aria-hidden="true" />
+                  Peta lokasi proyek
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  {mapProjects.length} lokasi ditampilkan · pilih marker untuk
+                  menyorot proyek
+                </p>
+              </div>
+              <Link
+                href="/projects"
+                className={`text-xs font-semibold text-teal-800 hover:underline ${focusClass}`}
+              >
+                Buka Projects →
+              </Link>
+            </div>
+            <ProjectMap
+              projects={mapProjects}
+              onSelect={(projectId) => {
+                setSearchTerm(projectId);
+                setHealthFilter('All');
+                setSelectedProject(projectId);
+                document
+                  .getElementById('portfolio-table')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+            />
+          </article>
+          <section aria-labelledby="milestone-heading" className={panelClass}>
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">
+              <div>
+                <h3
+                  id="milestone-heading"
+                  className="font-semibold text-slate-900"
+                >
+                  Milestone 30 hari ke depan
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  {milestones.length} jadwal terdekat
+                </p>
+              </div>
+              <Link
+                href="/time-plan"
+                aria-label="Buka Time Plan"
+                className={`rounded-lg border border-slate-200 p-2 text-teal-800 hover:bg-slate-50 ${focusClass}`}
+              >
+                <CalendarDays className="size-4" />
+              </Link>
+            </div>
+            {milestones.length ? (
+              <ul className="divide-y divide-slate-100">
+                {milestones.map((milestone, index) => (
+                  <li
+                    key={`${milestone.label}-${index}`}
+                    className="flex items-start gap-3 p-5"
+                  >
+                    <div
+                      className={`flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-lg ${milestone.state === 'risk' ? 'bg-amber-50 text-amber-900' : 'bg-slate-100 text-[#17364a]'}`}
+                    >
+                      <strong className="font-mono text-xl leading-none">
+                        {milestone.day}
+                      </strong>
+                      <span className="mt-1 text-xs">{milestone.month}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="break-words text-sm font-semibold text-slate-800">
+                        {milestone.label}
+                      </h4>
+                      <p className="mt-1 break-words text-xs leading-5 text-slate-500">
+                        {milestone.meta}
+                      </p>
+                      <p
+                        className={`mt-1 text-xs font-medium ${milestone.state === 'risk' ? 'text-amber-800' : 'text-teal-700'}`}
+                      >
+                        {milestone.state === 'risk'
+                          ? 'Perlu perhatian'
+                          : 'Sesuai jadwal'}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="flex min-h-48 flex-col items-center justify-center gap-3 p-6 text-center">
+                <CalendarDays
+                  className="size-7 text-slate-300"
+                  aria-hidden="true"
+                />
+                <p className="text-sm text-slate-500">
+                  Belum ada milestone dalam 30 hari ke depan.
+                </p>
+                <Link
+                  href="/time-plan"
+                  className={`text-xs font-semibold text-teal-800 hover:underline ${focusClass}`}
+                >
+                  Lihat rencana proyek →
+                </Link>
+              </div>
+            )}
+          </section>
         </div>
       </section>
 
       <section
         id="portfolio-table"
         aria-labelledby="project-table-heading"
-        className="border border-[#d9e0e4] bg-white"
+        className={`${panelClass} scroll-mt-28 overflow-hidden`}
       >
-        <div className="flex flex-col gap-4 border-b border-[#e5e9ec] px-5 py-5 md:flex-row md:items-end md:justify-between md:px-6">
-          <div>
-            <p className="section-kicker">Delivery register</p>
-            <h2 id="project-table-heading" className="section-title">
-              Project portfolio
-            </h2>
-            <p className="mt-2 text-[10px] text-[#87939c]">
-              Showing {visibleProjects.length} of {projects.length} priority
-              projects
-            </p>
+        <header className="space-y-4 border-b border-slate-200 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2
+                id="project-table-heading"
+                className="text-lg font-semibold text-slate-900"
+              >
+                Daftar proyek
+              </h2>
+              <p className="mt-1 text-xs text-slate-500" role="status">
+                Menampilkan {visibleProjects.length} dari {projects.length}{' '}
+                proyek.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={exportPortfolio}
+              className="h-9 gap-2 rounded-lg border-slate-300 px-3 text-xs shadow-none"
+            >
+              <Download className="size-4" aria-hidden="true" />
+              Ekspor CSV
+            </Button>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="relative w-full xl:max-w-sm">
+              <Search
+                className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+                aria-hidden="true"
+              />
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                aria-label="Cari proyek pada portfolio"
+                placeholder="Cari nama, kode, lokasi, atau fase..."
+                className="h-10 border-slate-300 bg-white pl-9 text-sm shadow-none"
+              />
+            </div>
             <div
-              className="flex items-center border border-[#dce2e6] bg-[#f7f9fa] p-1"
-              aria-label="Filter by health"
+              role="group"
+              aria-label="Filter kondisi proyek"
+              className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1"
             >
               {(
                 [
@@ -446,218 +656,209 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                   type="button"
                   onClick={() => setHealthFilter(filter)}
                   aria-pressed={healthFilter === filter}
-                  className={`px-3 py-1.5 text-[10px] font-semibold transition ${healthFilter === filter ? 'bg-[#17364a] text-white shadow-sm' : 'text-[#6f7d87] hover:text-[#17364a]'}`}
+                  className={`flex-1 whitespace-nowrap rounded-md px-3 py-2 text-xs font-semibold ${focusClass} ${healthFilter === filter ? 'bg-[#17364a] text-white' : 'text-slate-600 hover:bg-white'}`}
                 >
-                  {filter}
+                  {healthLabels[filter]}
                 </button>
               ))}
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={exportPortfolio}
-              className="h-9 border-[#dce2e6] px-3 text-[10px] shadow-none"
-            >
-              <Download className="size-3.5" /> Export
-            </Button>
           </div>
-        </div>
-
-        {selectedProject && (
-          <div className="flex items-center justify-between gap-4 border-b border-[#dce6ea] bg-[#f1f6f7] px-5 py-3 text-[10px] text-[#586b78] md:px-6">
-            <span>
-              <strong className="text-[#18384b]">Selected:</strong>{' '}
-              {projects.find((project) => project.id === selectedProject)?.name}
-            </span>
+        </header>
+        {selected && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-teal-100 bg-teal-50 px-5 py-3">
+            <p className="min-w-0 flex-1 break-words text-sm text-teal-900">
+              <strong>{selected.id}</strong> · {selected.name}
+            </p>
             <button
               type="button"
               onClick={() => setSelectedProject(null)}
-              className="font-semibold text-[#cf5938] hover:underline"
+              className={`rounded text-xs font-semibold text-teal-800 hover:underline ${focusClass}`}
             >
-              Clear selection
+              Hapus sorotan
             </button>
           </div>
         )}
-
-        {visibleProjects.length > 0 ? (
+        {visibleProjects.length ? (
           <>
-            <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[880px] border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-[#e6eaed] bg-[#f7f9fa] text-[9px] font-bold uppercase tracking-[0.13em] text-[#7b8993]">
-                    <th className="px-6 py-3.5 font-bold">Project</th>
-                    <th className="px-4 py-3.5 font-bold">Progress</th>
-                    <th className="px-4 py-3.5 font-bold">Material</th>
-                    <th className="px-4 py-3.5 font-bold">Phase</th>
-                    <th className="px-4 py-3.5 font-bold">Finish</th>
-                    <th className="px-4 py-3.5 font-bold">Health</th>
-                    <th className="px-4 py-3.5 text-right font-bold">GM</th>
-                    <th className="w-12 px-4 py-3.5">
-                      <span className="sr-only">Actions</span>
-                    </th>
+            <div
+              className="hidden overflow-x-auto md:block"
+              role="region"
+              aria-label="Tabel portfolio proyek"
+              tabIndex={0}
+            >
+              <table className="w-full min-w-[1020px] border-collapse text-left text-sm">
+                <caption className="sr-only">
+                  Progres, material, fase, target selesai, kondisi, dan
+                  perkiraan gross margin proyek
+                </caption>
+                <thead className="bg-slate-50 text-xs text-slate-600">
+                  <tr>
+                    {[
+                      'Proyek / lokasi',
+                      'Progres',
+                      'Material',
+                      'Fase',
+                      'Target selesai',
+                      'Kondisi',
+                      'GM',
+                    ].map((label) => (
+                      <th
+                        key={label}
+                        scope="col"
+                        className={`px-4 py-3 font-semibold ${label === 'GM' ? 'text-right' : ''}`}
+                      >
+                        {label}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#edf0f2]">
+                <tbody className="divide-y divide-slate-100">
                   {visibleProjects.map((project) => (
                     <tr
                       key={project.id}
-                      className={`group transition hover:bg-[#f8fafb] ${selectedProject === project.id ? 'bg-[#f1f6f7]' : ''}`}
+                      className={
+                        selectedProject === project.id
+                          ? 'bg-teal-50/60'
+                          : 'hover:bg-slate-50'
+                      }
                     >
-                      <td className="px-6 py-4">
+                      <th
+                        scope="row"
+                        className="min-w-[240px] max-w-[400px] px-4 py-4 font-normal"
+                      >
                         <button
                           type="button"
                           onClick={() => setSelectedProject(project.id)}
-                          className="text-left"
+                          aria-pressed={selectedProject === project.id}
+                          className={`rounded text-left ${focusClass}`}
                         >
-                          <strong className="block text-[12px] font-semibold text-[#263846] group-hover:text-[#d85832]">
+                          <strong className="block break-words text-sm font-semibold leading-5 text-slate-800">
                             {project.name}
                           </strong>
-                          <span className="mt-1 block font-mono text-[9px] text-[#8b979f]">
+                          <span className="mt-1 block text-xs text-slate-500">
                             {project.id} · {project.city}
                           </span>
                         </button>
-                      </td>
+                      </th>
                       <td className="px-4 py-4">
-                        <div className="flex min-w-[104px] items-center gap-3">
+                        <div className="flex min-w-[120px] items-center gap-3">
                           <progress
                             value={project.progress}
                             max="100"
-                            aria-label={`${project.name} progress ${formatPercent(project.progress)}`}
+                            aria-label={`${project.name} progres ${formatPercent(project.progress)}`}
                             className="project-progress"
                           />
-                          <span className="w-8 font-mono text-[10px] font-semibold text-[#3d505d]">
+                          <span className="whitespace-nowrap font-mono text-xs tabular-nums">
                             {formatPercent(project.progress)}
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2 text-[10px] font-semibold text-[#3d505d]">
-                          <PackageCheck
-                            className={`size-3.5 ${project.material < 80 ? 'text-[#d7962f]' : 'text-[#1b8e75]'}`}
-                          />
-                          {formatPercent(project.material)}
-                        </div>
+                      <td className="whitespace-nowrap px-4 py-4 font-mono text-xs tabular-nums">
+                        {formatPercent(project.material)}
                       </td>
                       <td className="px-4 py-4">
-                        <span className="bg-[#edf2f4] px-2 py-1 font-mono text-[9px] font-bold text-[#49606d]">
+                        <span className="rounded bg-slate-100 px-2 py-1 font-mono text-xs text-slate-600">
                           {project.phase}
                         </span>
                       </td>
-                      <td className="px-4 py-4 font-mono text-[10px] text-[#536672]">
+                      <td className="whitespace-nowrap px-4 py-4 text-xs text-slate-600">
                         {project.finish}
                       </td>
                       <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2 py-1 text-[9px] font-semibold ${project.health === 'On track' ? 'bg-[#eaf6f2] text-[#197a65]' : project.health === 'Attention' ? 'bg-[#fff5e3] text-[#b77719]' : 'bg-[#fff0ed] text-[#cf4e3c]'}`}
-                        >
-                          <i
-                            className={`size-1.5 rounded-full ${project.health === 'On track' ? 'bg-[#1c9377]' : project.health === 'Attention' ? 'bg-[#e4a23a]' : 'bg-[#e35645]'}`}
-                          />
-                          {project.health}
-                        </span>
+                        <HealthBadge health={project.health} />
                       </td>
                       <td
-                        className={`px-4 py-4 text-right font-mono text-[11px] font-semibold ${project.gm < 22 ? 'text-[#d14f3c]' : 'text-[#2b4656]'}`}
+                        className={`whitespace-nowrap px-4 py-4 text-right font-mono text-xs font-semibold tabular-nums ${project.gm < 22 ? 'text-red-700' : 'text-slate-700'}`}
                       >
                         {formatPercent(project.gm)}
-                      </td>
-                      <td className="px-4 py-4">
-                        <button
-                          type="button"
-                          aria-label={`More actions for ${project.name}`}
-                          className="grid size-7 place-items-center text-[#8d989f] hover:bg-[#e9eef1] hover:text-[#18384b]"
-                        >
-                          <MoreHorizontal className="size-4" />
-                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-
-            <div className="divide-y divide-[#e9edef] md:hidden">
+            <div className="divide-y divide-slate-200 md:hidden">
               {visibleProjects.map((project) => (
                 <article
                   key={project.id}
-                  className={`p-5 ${selectedProject === project.id ? 'bg-[#f1f6f7]' : ''}`}
+                  className={`space-y-4 p-5 ${selectedProject === project.id ? 'bg-teal-50/60' : ''}`}
                 >
-                  <button
-                    type="button"
-                    onClick={() => setSelectedProject(project.id)}
-                    className="flex w-full items-start justify-between gap-3 text-left"
-                  >
-                    <span>
-                      <strong className="block text-[12px] font-semibold text-[#263846]">
+                  <div className="flex items-start justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProject(project.id)}
+                      aria-pressed={selectedProject === project.id}
+                      className={`min-w-0 rounded text-left ${focusClass}`}
+                    >
+                      <strong className="block break-words text-sm font-semibold leading-5 text-slate-800">
                         {project.name}
                       </strong>
-                      <small className="mt-1 block font-mono text-[9px] text-[#8b979f]">
+                      <span className="mt-2 block text-xs text-slate-500">
                         {project.id} · {project.city}
-                      </small>
-                    </span>
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2 py-1 text-[9px] font-semibold ${project.health === 'On track' ? 'bg-[#eaf6f2] text-[#197a65]' : project.health === 'Attention' ? 'bg-[#fff5e3] text-[#b77719]' : 'bg-[#fff0ed] text-[#cf4e3c]'}`}
-                    >
-                      {project.health}
-                    </span>
-                  </button>
-                  <div className="mt-4 grid grid-cols-3 gap-4 text-[9px] text-[#81909a]">
-                    <div>
-                      <span className="block uppercase tracking-wider">
-                        Progress
                       </span>
-                      <strong className="mt-1 block font-mono text-[11px] text-[#314856]">
+                    </button>
+                    <HealthBadge health={project.health} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <p className="text-slate-500">Progres</p>
+                      <p className="mt-1 font-mono font-semibold">
                         {formatPercent(project.progress)}
-                      </strong>
+                      </p>
                     </div>
                     <div>
-                      <span className="block uppercase tracking-wider">
-                        Material
-                      </span>
-                      <strong className="mt-1 block font-mono text-[11px] text-[#314856]">
+                      <p className="text-slate-500">Material</p>
+                      <p className="mt-1 font-mono font-semibold">
                         {formatPercent(project.material)}
-                      </strong>
+                      </p>
                     </div>
                     <div>
-                      <span className="block uppercase tracking-wider">GM</span>
-                      <strong className="mt-1 block font-mono text-[11px] text-[#314856]">
-                        {formatPercent(project.gm)}
-                      </strong>
+                      <p className="text-slate-500">Fase</p>
+                      <p className="mt-1 font-mono font-semibold">
+                        {project.phase}
+                      </p>
                     </div>
                   </div>
                   <progress
                     value={project.progress}
                     max="100"
-                    aria-label={`${project.name} progress ${formatPercent(project.progress)}`}
-                    className="project-progress mt-4"
+                    aria-label={`${project.name} progres ${formatPercent(project.progress)}`}
+                    className="project-progress"
                   />
+                  <div className="flex justify-between gap-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                    <p>
+                      Target{' '}
+                      <span className="font-medium text-slate-700">
+                        {project.finish}
+                      </span>
+                    </p>
+                    <p>
+                      GM{' '}
+                      <span className="font-mono font-semibold text-slate-700">
+                        {formatPercent(project.gm)}
+                      </span>
+                    </p>
+                  </div>
                 </article>
               ))}
             </div>
           </>
         ) : (
-          <div className="grid min-h-[220px] place-items-center px-6 py-12 text-center">
-            <div>
-              <div className="mx-auto grid size-11 place-items-center bg-[#eef2f4] text-[#647783]">
-                <Filter className="size-4" />
-              </div>
-              <h3 className="mt-4 text-sm font-semibold text-[#263846]">
-                No projects found
-              </h3>
-              <p className="mt-2 text-[11px] text-[#87939c]">
-                Try another keyword or reset the health filter.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchTerm('');
-                  setHealthFilter('All');
-                }}
-                className="mt-4 text-[10px] font-semibold text-[#d85832] hover:underline"
-              >
-                Reset filters
-              </button>
-            </div>
+          <div className="flex min-h-52 flex-col items-center justify-center gap-3 p-6 text-center">
+            <Filter className="size-7 text-slate-300" aria-hidden="true" />
+            <h3 className="text-sm font-semibold text-slate-800">
+              Tidak ada proyek yang cocok
+            </h3>
+            <p className="text-sm text-slate-500">
+              Coba kata kunci atau kondisi proyek lain.
+            </p>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className={`rounded text-sm font-semibold text-teal-800 hover:underline ${focusClass}`}
+            >
+              Reset pencarian dan filter
+            </button>
           </div>
         )}
       </section>

@@ -1,19 +1,295 @@
 import Link from 'next/link';
+import { ArrowUpRight, ClipboardCheck } from 'lucide-react';
+
 import type { DashboardData } from '@/lib/dashboard/types';
 import { exactPoMoney } from '@/lib/finance/po-summary';
 import { DashboardInvoiceSummary } from './invoice-summary';
 
-export function OverviewSummary({data}:{data:DashboardData}) {
-  const overview=data.overview;
-  if(!overview) return null;
-  return <section aria-labelledby="overview-heading" className="space-y-5">
-    <header><p className="section-kicker">Ringkasan terpadu</p><h2 id="overview-heading" className="section-title">Pantauan seluruh modul</h2><p className="mt-2 text-xs text-slate-600">Tanggal operasional {overview.date} · sesuai hak akses · diperbarui saat halaman dimuat. Pencarian proyek di atas hanya memfilter tabel portfolio.</p></header>
-    <section className="border border-slate-200 bg-white p-5"><h3 className="font-semibold">PO Customer — jumlah & nilai per status</h3><p className="mt-1 text-xs text-slate-600">Seluruh proyek yang dapat diakses; Closed berarti PO selesai, bukan lunas. Jumlah dihitung per catatan proyek/PO.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{data.poSummary?.map(p=><Link key={p.key} href="/customer-po" className="min-w-0 border-l-4 border-teal-600 bg-slate-50 p-4 hover:bg-teal-50"><p className="text-sm font-semibold">{p.label} · {p.count}</p><p className="mt-2 break-words font-mono text-lg font-bold">{exactPoMoney(p.value)}</p><p className="mt-1 text-xs text-slate-600">{p.description}</p></Link>)}</div></section>
-    {overview.invoices && <DashboardInvoiceSummary summary={overview.invoices} />}
-    <section className="border border-slate-200 bg-white p-5"><div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">Target Tim hari ini</h3><Link href="/team-targets" className="text-sm font-semibold text-teal-800 underline">Buka rencana & bagikan WhatsApp</Link></div><div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">{[
-      ['Target hari ini',overview.achievement.count],['Selesai',overview.achievement.done],['Belum selesai',overview.achievement.remaining],['Pencapaian',`${overview.achievement.percent.toFixed(1)}%`],['Tertunda sebelum hari ini',overview.overdue],
-    ].map(([label,value])=><Link key={label} href="/team-targets" className="rounded bg-slate-50 p-3 text-center hover:bg-teal-50"><p className="text-xs text-slate-600">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></Link>)}</div><p className="mt-3 text-xs text-slate-600">Pencapaian rata-rata realisasi/target tiap aktivitas; tidak mengubah progres proyek. Aktivitas dibatalkan tidak dihitung.</p><h4 className="mt-4 text-sm font-semibold">Prioritas tindak lanjut — 5 aktivitas belum selesai, tanggal terlama dahulu</h4><ul className="mt-2 divide-y">{overview.queue.map(t=><li key={t.id}><Link href={`/team-targets?week=${t.scheduledDate}`} className="block py-3 text-sm hover:text-teal-800"><strong className="break-words">{t.title}</strong><span className="mt-1 block break-words text-xs text-slate-600">{t.pic} · {t.project} · {t.scheduledDate}</span></Link></li>)}</ul>{!overview.queue.length&&<p className="mt-3 text-sm text-slate-500">Tidak ada target tertunda atau target hari ini yang belum selesai.</p>}</section>
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{overview.modules.map(m=><Link key={m.label} href={m.href} className="min-w-0 border border-slate-200 bg-white p-4 hover:border-teal-600"><h3 className="font-semibold">{m.label} →</h3><p className="mt-3 text-2xl font-bold">{m.value}</p><p className="text-sm">{m.unit}</p><p className="mt-2 text-xs text-slate-600">{m.note}</p></Link>)}</div>
-    {overview.quotations&&<section className="border border-slate-200 bg-white p-5"><div className="flex justify-between gap-3"><h3 className="font-semibold">Quotation / SPH</h3><Link href="/quotations" className="text-sm text-teal-800 underline">Buka SPH</Link></div><p className="mt-2 text-xs text-slate-600">Admin / Project Manager · nilai penawaran, tidak dijumlahkan dengan PO Customer. Satu SPH dapat menjadi beberapa PO.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{overview.quotations.map(q=><Link key={q.label} href="/quotations" className="min-w-0 bg-slate-50 p-3 hover:bg-teal-50"><p className="text-sm">{q.label}</p><p className="mt-1 text-xl font-bold">{q.count}</p><p className="mt-1 break-words font-mono text-sm">{q.value}</p></Link>)}</div></section>}
-  </section>;
+type Overview = NonNullable<DashboardData['overview']>;
+type OverviewSection = 'commercial' | 'operations';
+
+const panelClass = 'min-w-0 rounded-xl border border-slate-200 bg-white';
+const focusClass =
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700';
+const linkClass = `inline-flex items-center gap-1 text-xs font-semibold text-teal-800 hover:underline ${focusClass}`;
+
+function CustomerPoSummary({ data }: { data: DashboardData }) {
+  return (
+    <section
+      className={panelClass}
+      aria-labelledby="customer-po-summary-heading"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <div>
+          <h3
+            id="customer-po-summary-heading"
+            className="text-base font-semibold text-slate-900"
+          >
+            PO Customer — jumlah & nilai per status
+          </h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            Nilai PO sebelum PPN pada seluruh proyek yang dapat diakses.
+          </p>
+        </div>
+        <Link href="/customer-po" className={linkClass}>
+          Buka PO <ArrowUpRight className="size-3.5" aria-hidden="true" />
+        </Link>
+      </div>
+      <div className="px-5 pb-2 pt-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_44px_minmax(0,1.3fr)] gap-2 pb-2 text-xs font-medium text-slate-500">
+          <span>Status PO</span>
+          <span className="text-center">Jumlah</span>
+          <span className="text-right">Nilai PO</span>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {data.poSummary?.map((po) => (
+            <Link
+              key={po.key}
+              href="/customer-po"
+              className={`grid grid-cols-[minmax(0,1fr)_44px_minmax(0,1.3fr)] items-center gap-2 rounded-lg py-3 transition hover:bg-slate-50 ${focusClass}`}
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-800">
+                  {po.label}
+                </p>
+                <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                  {po.description}
+                </p>
+              </div>
+              <p className="text-center font-mono text-base font-semibold tabular-nums text-slate-800">
+                {po.count}
+              </p>
+              <p className="min-w-0 break-words text-right font-mono text-sm font-semibold tabular-nums text-slate-900">
+                {exactPoMoney(po.value)}
+              </p>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function QuotationSummary({ overview }: { overview: Overview }) {
+  if (!overview.quotations) return null;
+  return (
+    <section className={panelClass} aria-labelledby="quotation-summary-heading">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <div>
+          <h3
+            id="quotation-summary-heading"
+            className="text-base font-semibold text-slate-900"
+          >
+            Quotation / SPH
+          </h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            Admin / Project Manager · nilai penawaran yang tercatat.
+          </p>
+        </div>
+        <Link href="/quotations" className={linkClass}>
+          Buka SPH <ArrowUpRight className="size-3.5" aria-hidden="true" />
+        </Link>
+      </div>
+      <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+        {overview.quotations.map((quotation) => (
+          <Link
+            key={quotation.label}
+            href="/quotations"
+            className={`min-w-0 rounded-lg bg-slate-50 px-4 py-3 transition hover:bg-teal-50 ${focusClass}`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-xs font-semibold leading-5 text-slate-600">
+                {quotation.label}
+              </p>
+              <p className="font-mono text-lg font-bold tabular-nums text-slate-900">
+                {quotation.count}
+              </p>
+            </div>
+            <p className="mt-2 break-words font-mono text-sm font-semibold text-slate-900">
+              {quotation.value}
+            </p>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TeamTargets({ overview }: { overview: Overview }) {
+  const statistics = [
+    ['Target hari ini', overview.achievement.count],
+    ['Selesai', overview.achievement.done],
+    ['Belum selesai', overview.achievement.remaining],
+    ['Tertunda sebelum hari ini', overview.overdue],
+  ] as const;
+
+  return (
+    <section
+      className={panelClass}
+      aria-labelledby="team-targets-summary-heading"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <h3
+          id="team-targets-summary-heading"
+          className="text-base font-semibold text-slate-900"
+        >
+          Target Tim hari ini
+        </h3>
+        <Link href="/team-targets" className={linkClass}>
+          Rencana & WhatsApp{' '}
+          <ArrowUpRight className="size-3.5" aria-hidden="true" />
+        </Link>
+      </div>
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+        <div className="space-y-4 p-5">
+          <div className="grid grid-cols-2 gap-3">
+            {statistics.map(([label, value]) => (
+              <Link
+                key={label}
+                href="/team-targets"
+                className={`rounded-lg bg-slate-50 p-4 transition hover:bg-teal-50 ${focusClass}`}
+              >
+                <p className="text-xs font-medium leading-5 text-slate-600">
+                  {label}
+                </p>
+                <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-slate-900">
+                  {value}
+                </p>
+              </Link>
+            ))}
+          </div>
+          <div className="rounded-lg border border-teal-100 bg-teal-50/60 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor="daily-target-achievement"
+                className="text-sm font-semibold text-teal-900"
+              >
+                Pencapaian target hari ini
+              </label>
+              <span className="font-mono text-lg font-bold tabular-nums text-teal-900">
+                {overview.achievement.percent.toFixed(1)}%
+              </span>
+            </div>
+            <progress
+              id="daily-target-achievement"
+              max={100}
+              value={overview.achievement.percent}
+              className="project-progress mt-3"
+            />
+            <p className="mt-2 text-xs leading-5 text-teal-900/80">
+              Rata-rata realisasi terhadap target tiap aktivitas.
+            </p>
+          </div>
+        </div>
+        <div className="border-t border-slate-100 p-5 lg:border-l lg:border-t-0">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-semibold text-slate-900">
+                Prioritas tindak lanjut
+              </h4>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Lima aktivitas terlama yang belum selesai.
+              </p>
+            </div>
+            <ClipboardCheck
+              className="size-5 shrink-0 text-slate-400"
+              aria-hidden="true"
+            />
+          </div>
+          <ul className="mt-3 divide-y divide-slate-100">
+            {overview.queue.map((task) => (
+              <li key={task.id}>
+                <Link
+                  href={`/team-targets?week=${task.scheduledDate}`}
+                  className={`block rounded-lg py-3 transition hover:text-teal-800 ${focusClass}`}
+                >
+                  <p className="break-words text-sm font-semibold leading-5">
+                    {task.title}
+                  </p>
+                  <p className="mt-1 break-words text-xs leading-5 text-slate-500">
+                    {task.pic} · {task.project} · {task.scheduledDate}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {!overview.queue.length && (
+            <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm leading-6 text-slate-500">
+              Tidak ada aktivitas tertunda atau target hari ini yang belum
+              selesai.
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function OverviewSummary({
+  data,
+  section,
+}: {
+  data: DashboardData;
+  section?: OverviewSection;
+}) {
+  const overview = data.overview;
+  if (!overview) return null;
+
+  const showCommercial = section === undefined || section === 'commercial';
+  const showOperations = section === undefined || section === 'operations';
+
+  return (
+    <div className="space-y-6">
+      {showCommercial && (
+        <div className="space-y-6">
+          <div className="grid items-stretch gap-5 xl:grid-cols-2">
+            <CustomerPoSummary data={data} />
+            {overview.invoices && (
+              <DashboardInvoiceSummary summary={overview.invoices} />
+            )}
+          </div>
+          <QuotationSummary overview={overview} />
+        </div>
+      )}
+      {showOperations && (
+        <section aria-labelledby="overview-heading" className="space-y-4">
+          <h2
+            id="overview-heading"
+            className="text-lg font-semibold tracking-tight text-slate-900"
+          >
+            Pantauan seluruh modul
+          </h2>
+          <TeamTargets overview={overview} />
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {overview.modules.map((module) => (
+              <Link
+                key={module.label}
+                href={module.href}
+                className={`min-w-0 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-teal-300 hover:bg-teal-50/30 ${focusClass}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    {module.label}
+                  </h3>
+                  <ArrowUpRight
+                    className="size-4 shrink-0 text-slate-400"
+                    aria-hidden="true"
+                  />
+                </div>
+                <p className="mt-3 font-mono text-2xl font-semibold tabular-nums text-slate-900">
+                  {module.value}
+                </p>
+                <p className="mt-1 text-sm leading-5 text-slate-600">
+                  {module.unit}
+                </p>
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  {module.note}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
 }
