@@ -1,6 +1,13 @@
 'use client';
 
-import { Eye, EyeOff, Loader2, LockKeyhole, UserRound } from 'lucide-react';
+import {
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Loader2,
+  LockKeyhole,
+  UserRound,
+} from 'lucide-react';
 import { useActionState, useState } from 'react';
 
 import { loginAction, type LoginState } from '@/app/actions/auth';
@@ -17,16 +24,19 @@ export function LoginForm({ demoMode }: { demoMode: boolean }) {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <form action={formAction} className="mt-8 space-y-5">
+    <form action={formAction} aria-busy={pending} className="mt-8 space-y-5">
       <div>
         <label
           htmlFor="username"
-          className="mb-2 block text-sm font-semibold text-[#314654]"
+          className="mb-2.5 block text-sm font-semibold text-[#2b4050]"
         >
           Username
         </label>
         <div className="relative">
-          <UserRound className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#82909a]" />
+          <UserRound
+            aria-hidden="true"
+            className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-[#87929a]"
+          />
           <Input
             id="username"
             name="username"
@@ -34,20 +44,23 @@ export function LoginForm({ demoMode }: { demoMode: boolean }) {
             defaultValue={demoMode ? 'demo' : ''}
             required
             minLength={3}
-            className="h-12 border-[#d8e0e4] bg-white pl-10 text-base shadow-none"
-            placeholder="Masukkan username"
+            className="h-[54px] rounded-xl border-[#e1e5e7] bg-[#fbfaf8] pl-12 text-base text-[#183448] shadow-none placeholder:text-[#687984] hover:border-[#bdc8cf] focus-visible:border-[#947743] focus-visible:bg-white focus-visible:ring-[#b99b61]/15 md:text-base"
+            placeholder="Username Anda"
           />
         </div>
       </div>
       <div>
         <label
           htmlFor="password"
-          className="mb-2 block text-sm font-semibold text-[#314654]"
+          className="mb-2.5 block text-sm font-semibold text-[#2b4050]"
         >
           Password
         </label>
         <div className="relative">
-          <LockKeyhole className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#82909a]" />
+          <LockKeyhole
+            aria-hidden="true"
+            className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-[#87929a]"
+          />
           <Input
             id="password"
             name="password"
@@ -56,8 +69,8 @@ export function LoginForm({ demoMode }: { demoMode: boolean }) {
             defaultValue={demoMode ? 'development' : ''}
             required
             minLength={8}
-            className="h-12 border-[#d8e0e4] bg-white px-10 text-base shadow-none"
-            placeholder="Masukkan password"
+            className="h-[54px] rounded-xl border-[#e1e5e7] bg-[#fbfaf8] pl-12 pr-14 text-base text-[#183448] shadow-none placeholder:text-[#687984] hover:border-[#bdc8cf] focus-visible:border-[#947743] focus-visible:bg-white focus-visible:ring-[#b99b61]/15 md:text-base"
+            placeholder="Password Anda"
           />
           <button
             type="button"
@@ -65,12 +78,13 @@ export function LoginForm({ demoMode }: { demoMode: boolean }) {
             aria-label={
               showPassword ? 'Sembunyikan password' : 'Tampilkan password'
             }
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#82909a] hover:text-[#203b4c]"
+            aria-pressed={showPassword}
+            className="absolute right-1 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-lg text-[#7d8b95] transition-colors hover:bg-[#eef1f2] hover:text-[#183448] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#947743]"
           >
             {showPassword ? (
-              <EyeOff className="size-4" />
+              <EyeOff aria-hidden="true" className="size-[18px]" />
             ) : (
-              <Eye className="size-4" />
+              <Eye aria-hidden="true" className="size-[18px]" />
             )}
           </button>
         </div>
@@ -79,13 +93,13 @@ export function LoginForm({ demoMode }: { demoMode: boolean }) {
       {state.error && (
         <p
           role="alert"
-          className="border-l-2 border-[#dc5945] bg-[#fff2ef] px-3 py-2.5 text-sm text-[#b44231]"
+          className="rounded-xl border border-[#f1d4cd] bg-[#fff5f2] px-4 py-3 text-sm leading-6 text-[#a74031]"
         >
           {state.error}
         </p>
       )}
       {demoMode && (
-        <p className="bg-[#eef5f5] px-3 py-2.5 text-sm text-[#49626e]">
+        <p className="rounded-xl border border-[#dce9e7] bg-[#f1f7f6] px-4 py-3 text-sm leading-6 text-[#49626e]">
           Mode preview lokal aktif. Kredensial demo sudah terisi.
         </p>
       )}
@@ -93,16 +107,26 @@ export function LoginForm({ demoMode }: { demoMode: boolean }) {
       <Button
         type="submit"
         disabled={pending}
-        className="h-12 w-full bg-[#17364a] text-sm text-white hover:bg-[#0f2a3b]"
+        className="group h-[54px] w-full justify-center gap-3 rounded-xl bg-[#16374a] px-5 text-sm font-semibold text-white shadow-[0_8px_18px_-9px_rgba(22,55,74,0.55)] transition-all hover:bg-[#214b60] hover:shadow-[0_10px_22px_-9px_rgba(22,55,74,0.5)] focus-visible:ring-[#b99b61]/40"
       >
         {pending ? (
           <>
-            <Loader2 className="size-4 animate-spin" /> Memeriksa...
+            <Loader2 aria-hidden="true" className="size-4 animate-spin" />{' '}
+            Memeriksa...
           </>
         ) : (
-          'Masuk ke dashboard'
+          <>
+            Masuk ke dashboard
+            <ArrowRight
+              aria-hidden="true"
+              className="size-4 transition-transform group-hover:translate-x-0.5"
+            />
+          </>
         )}
       </Button>
+      <p className="text-center text-xs leading-5 text-[#687983]">
+        Butuh akses? Hubungi administrator Anda.
+      </p>
     </form>
   );
 }

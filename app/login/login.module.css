@@ -1,0 +1,41 @@
+.page {
+  background-color: #f3f1ed;
+  background-image:
+    radial-gradient(
+      ellipse at 12% 10%,
+      rgb(217 204 175 / 20%),
+      transparent 45%
+    ),
+    radial-gradient(ellipse at 90% 90%, rgb(184 201 207 / 19%), transparent 45%);
+}
+
+.story {
+  background-color: #112c3d;
+  background-image:
+    radial-gradient(ellipse at 10% 0%, rgb(62 102 119 / 25%), transparent 55%),
+    linear-gradient(145deg, #17394a, #102837 65%, #102a3a);
+}
+
+.blueprint {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(217 231 235 / 3%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(217 231 235 / 3%) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(to bottom, transparent, #000 55%, transparent);
+}
+
+.orbit {
+  position: absolute;
+  top: 14%;
+  right: -285px;
+  width: 530px;
+  height: 530px;
+  border: 1px solid rgb(222 199 155 / 9%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 66px rgb(222 199 155 / 4%),
+    0 0 0 132px rgb(222 199 155 / 3%);
+  pointer-events: none;
+}
