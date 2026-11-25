@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
   warehouseItemSchema,
+  warehouseItemUpdateSchema,
   warehouseReceiptSchema,
   warehouseIssueSchema,
   warehouseReturnSchema,
@@ -25,6 +26,18 @@ test('warehouse movements accept exact fractional quantities and reject invalid 
     assert.equal(warehouseReceiptSchema.safeParse({...receipt(),quantity}).success,false,quantity);
   }
   assert.equal(warehouseReceiptSchema.safeParse({...receipt(),requestId:'not-a-uuid'}).success,false);
+});
+
+test('warehouse identity edits normalize codes, require a version, and cannot carry stock changes',()=>{
+  const input={id:'warehouse-1',updatedAt:'2026-11-25T03:00:00.000Z',code:'  ｗｈ－ｃａｂｌｅ  ',description:'  Kabel gudang baru  '};
+  const parsed=warehouseItemUpdateSchema.parse({...input,quantity:'999',unit:'PCS',location:'Changed rack',minQty:'200'});
+  assert.deepEqual(parsed,{id:input.id,updatedAt:input.updatedAt,code:'WH-CABLE',description:'Kabel gudang baru'});
+  for(const change of [
+    {id:''},{updatedAt:''},{updatedAt:'yesterday'},{updatedAt:'2026-11-25'},
+    {code:'   '},{code:'X'.repeat(81)},{description:' '},{description:'X'.repeat(301)},
+  ]) assert.equal(warehouseItemUpdateSchema.safeParse({...input,...change}).success,false);
+  const withoutVersion={id:input.id,code:input.code,description:input.description};
+  assert.equal(warehouseItemUpdateSchema.safeParse(withoutVersion).success,false);
 });
 
 test('issues require a project material and returns require the original issue',()=>{

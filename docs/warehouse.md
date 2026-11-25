@@ -2,6 +2,10 @@
 
 Admin dan Project Manager membuka menu **Stok Gudang** untuk mengelola persediaan perusahaan. Viewer tidak memperoleh akses ke saldo gudang atau transaksi gudang. Izin Material milik Viewer tetap hanya berlaku pada material proyek.
 
+Pada tabel **Persediaan material**, pilih **Edit** di baris barang untuk mengubah **kode material** dan **nama/deskripsi barang**, lalu pilih **Simpan perubahan**. Kode harus unik. Penyimpanan tidak mengubah jumlah stok, satuan, lokasi/rak, batas minimum, atau hubungan transaksi dengan item tersebut. Jika data berubah sejak formulir dibuka, muat ulang halaman dan buka Edit kembali agar perubahan terbaru tidak tertimpa.
+
+Perubahan kode gudang tidak mengubah kode pada baseline BoQ yang sudah disetujui. Pengambilan berikutnya tetap mensyaratkan kode dan satuan yang sesuai dengan BoQ. Transaksi dan retur lama tetap merujuk item yang sama; nama/kode yang ditampilkan pada riwayat mengikuti master terbaru. Nilai sebelum dan sesudah pengeditan disimpan pada audit.
+
 1. Tambahkan master material gudang: kode material, deskripsi, satuan, lokasi/rak, dan batas stok minimum. Material baru dimulai dari saldo nol.
 2. Catat **Barang masuk** untuk saldo awal maupun penerimaan berikutnya. Isi jumlah, nomor referensi, petugas/penerima, dan catatan.
 3. Pada **Pengambilan untuk proyek**, pilih stok, proyek, dan material dari baseline BoQ yang sudah disetujui. Kode dan satuan harus sesuai. Periksa sisa kebutuhan dan jumlah yang diambil, lalu konfirmasi.

@@ -2,11 +2,12 @@
 
 import { useActionState, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Boxes, RotateCcw, Search } from 'lucide-react';
+import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Boxes, Pencil, RotateCcw, Search } from 'lucide-react';
 import { createWarehouseItem, receiveWarehouseStock, issueWarehouseStock, returnWarehouseStock } from '@/app/actions/warehouse';
-import { idleState } from '@/lib/operations/validation';
-import type { WarehouseWorkspaceData } from '@/lib/warehouse/types';
+import { idleState, type MutationState } from '@/lib/operations/validation';
+import type { WarehouseItemRow, WarehouseWorkspaceData } from '@/lib/warehouse/types';
 import { buttonClass, Field, inputClass, Metrics, MutationFeedback, panelClass } from '@/components/modules/workspace-ui';
+import { WarehouseItemEditor } from '@/components/warehouse/warehouse-item-editor';
 
 type FormProps = { data: WarehouseWorkspaceData; requestId: string; actorName: string };
 const normalized = (value: string) => value.normalize('NFKC').trim().replace(/\s+/g, ' ').toUpperCase();
@@ -118,6 +119,8 @@ const movementLabels: Record<string, string> = { RECEIPT: 'Barang masuk', ISSUE:
 
 export function WarehouseWorkspace({ data, requestId, actorName, receiveRequestId, issueRequestId, returnRequestId }: FormProps & { receiveRequestId: string; issueRequestId: string; returnRequestId: string }) {
   const [search, setSearch] = useState('');
+  const [editingItem, setEditingItem] = useState<WarehouseItemRow | null>(null);
+  const [editFeedback, setEditFeedback] = useState<MutationState>(idleState);
   const visibleItems = data.items.filter(item => normalized(`${item.code} ${item.description} ${item.location}`).includes(normalized(search)));
   return <div className="mx-auto max-w-[1800px] space-y-5 p-5 md:p-7">
     <section className={panelClass}>
@@ -132,9 +135,12 @@ export function WarehouseWorkspace({ data, requestId, actorName, receiveRequestI
       <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="section-kicker">Current balance</p><h3 className="mt-1 flex items-center gap-2 text-xl font-semibold"><Boxes className="size-5 text-teal-700" /> Persediaan material</h3></div>
         <label className="flex w-full max-w-md items-center gap-2 rounded border px-3"><Search className="size-4 shrink-0 text-slate-400" /><input aria-label="Cari material gudang" className="w-full py-2 text-sm outline-none" value={search} onChange={event => setSearch(event.target.value)} placeholder="Cari kode, nama, atau rak gudang" /></label>
       </div>
-      <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="border-y bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr>{['Kode material', 'Deskripsi', 'Lokasi / rak', 'Satuan', 'Stok tersedia', 'Minimum', 'Status'].map(label => <th key={label} className="p-3">{label}</th>)}</tr></thead><tbody>{visibleItems.map(item => <tr className="border-b align-top" key={item.id}>
+      <MutationFeedback state={editFeedback} />
+      <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[840px] text-left text-sm"><thead className="border-y bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr>{['Kode material', 'Deskripsi', 'Lokasi / rak', 'Satuan', 'Stok tersedia', 'Minimum', 'Status', 'Aksi'].map(label => <th key={label} className="p-3">{label}</th>)}</tr></thead><tbody>{visibleItems.map(item => <tr className="border-b align-top" key={item.id}>
         <td className="p-3 font-mono font-semibold">{item.code}</td><td className="max-w-sm break-words p-3">{item.description}</td><td className="p-3">{item.location || '—'}</td><td className="p-3">{item.unit}</td><td className="p-3 font-mono text-base font-semibold">{item.quantity}</td><td className="p-3 font-mono">{item.minQty}</td><td className="p-3"><span className={`inline-block rounded px-2 py-1 text-xs ${item.lowStock ? 'bg-amber-50 text-amber-800' : 'bg-teal-50 text-teal-800'}`}>{item.quantity === '0' ? 'Kosong' : item.lowStock ? 'Perlu restock' : 'Tersedia'}</span></td>
+        <td className="p-3"><button type="button" aria-label={`Edit material ${item.code}`} disabled={data.demoMode} onClick={() => { setEditFeedback(idleState); setEditingItem(item); }} className="inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold text-[#17364a] hover:border-teal-700 hover:bg-teal-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 disabled:opacity-40"><Pencil aria-hidden="true" className="size-3.5" /> Edit</button></td>
       </tr>)}</tbody></table>{!visibleItems.length && <p className="py-6 text-center text-sm text-slate-500">{data.items.length ? 'Tidak ada material sesuai pencarian.' : 'Belum ada material gudang. Tambahkan material, lalu catat saldo awal melalui Barang masuk.'}</p>}</div>
+      {editingItem && <WarehouseItemEditor key={editingItem.id} item={editingItem} demo={data.demoMode} onClose={() => setEditingItem(null)} onSaved={state => { setEditFeedback(state); setEditingItem(null); }} />}
     </section>
 
     <div className="grid items-start gap-5 xl:grid-cols-2">

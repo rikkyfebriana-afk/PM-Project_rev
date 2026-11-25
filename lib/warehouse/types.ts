@@ -8,6 +8,7 @@ export type WarehouseItemRow = {
   minQty: string;
   quantity: string;
   lowStock: boolean;
+  updatedAt: string;
 };
 
 export type WarehouseMaterialOption = {

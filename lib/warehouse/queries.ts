@@ -58,7 +58,7 @@ export async function getWarehouseWorkspaceData(user: CurrentUser, returnSearch 
     items: items.map(item => ({
       id: item.id, code: item.code, normalizedCode: item.normalizedCode, description: item.description,
       unit: item.unit, location: item.location, minQty: item.minQty.toString(), quantity: item.quantity.toString(),
-      lowStock: item.quantity.lte(item.minQty),
+      lowStock: item.quantity.lte(item.minQty), updatedAt: item.updatedAt.toISOString(),
     })),
     materials: materials.map(material => ({
       id: material.id, projectId: material.projectId, projectLabel: `${material.project.code} — ${material.project.name}`,
