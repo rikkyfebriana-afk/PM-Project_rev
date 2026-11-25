@@ -35,6 +35,8 @@ export function WarehouseItemEditor({
   const router = useRouter();
   const [code, setCode] = useState(item.code);
   const [description, setDescription] = useState(item.description);
+  const [unit, setUnit] = useState(item.unit);
+  const [minQty, setMinQty] = useState(item.minQty);
   const [state, action, pending] = useActionState(
     async (previous: MutationState, form: FormData): Promise<MutationState> => {
       const result = await updateWarehouseItem(previous, form);
@@ -60,8 +62,7 @@ export function WarehouseItemEditor({
             Edit material gudang
           </DialogTitle>
           <DialogDescription>
-            Perbarui kode dan nama material agar daftar persediaan mudah
-            dikenali.
+            Perbarui kode, nama, satuan, dan batas minimum material gudang.
           </DialogDescription>
         </DialogHeader>
 
@@ -91,6 +92,52 @@ export function WarehouseItemEditor({
                 maxLength={300}
               />
             </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Field label="Satuan">
+                  <input
+                    name="unit"
+                    className={`${inputClass} read-only:bg-slate-100 read-only:text-slate-600`}
+                    value={unit}
+                    onChange={(event) => setUnit(event.target.value)}
+                    readOnly={!item.canEditUnit}
+                    aria-describedby="warehouse-edit-unit-help"
+                    required
+                    maxLength={32}
+                  />
+                </Field>
+                <p
+                  id="warehouse-edit-unit-help"
+                  className="mt-2 text-xs leading-5 text-slate-500"
+                >
+                  {item.canEditUnit
+                    ? 'Satuan dapat diubah selama stok masih nol dan belum ada riwayat transaksi.'
+                    : 'Satuan dikunci karena material sudah memiliki stok atau riwayat transaksi. Jumlah stok dan retur memakai satuan yang tercatat.'}
+                </p>
+              </div>
+              <div>
+                <Field label="Batas stok minimum">
+                  <input
+                    name="minQty"
+                    type="number"
+                    min="0"
+                    step="0.0001"
+                    inputMode="decimal"
+                    className={inputClass}
+                    value={minQty}
+                    onChange={(event) => setMinQty(event.target.value)}
+                    aria-describedby="warehouse-edit-minimum-help"
+                    required
+                  />
+                </Field>
+                <p
+                  id="warehouse-edit-minimum-help"
+                  className="mt-2 text-xs leading-5 text-slate-500"
+                >
+                  Stok pada atau di bawah batas ini ditandai untuk restock.
+                </p>
+              </div>
+            </div>
           </fieldset>
 
           <div className="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">

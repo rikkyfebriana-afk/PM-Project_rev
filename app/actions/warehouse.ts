@@ -40,7 +40,7 @@ export async function updateWarehouseItem(
     return {
       status: 'error',
       message:
-        'Periksa kode, nama barang, dan versi data. Muat ulang halaman bila form sudah lama dibuka.',
+        'Periksa kode, nama barang, satuan, batas stok minimum, dan versi data. Muat ulang halaman bila form sudah lama dibuka.',
     };
   try {
     const changed = await prisma.$transaction(
@@ -48,7 +48,10 @@ export async function updateWarehouseItem(
         await tx.$queryRaw`SELECT "id" FROM "WarehouseItem" WHERE "id"=${parsed.data.id} FOR UPDATE`;
         const current = await tx.warehouseItem.findUnique({
           where: { id: parsed.data.id },
-          select: { id: true, code: true, description: true, updatedAt: true },
+          select: {
+            id: true, code: true, description: true, unit: true, minQty: true,
+            quantity: true, updatedAt: true, _count: { select: { movements: true } },
+          },
         });
         if (!current)
           throw new WarehouseError(
@@ -58,9 +61,15 @@ export async function updateWarehouseItem(
           throw new WarehouseError(
             'Data material sudah berubah sejak form dibuka. Muat ulang halaman lalu buka Edit kembali.',
           );
+        if (current.unit !== parsed.data.unit && (!current.quantity.isZero() || current._count.movements > 0))
+          throw new WarehouseError(
+            'Satuan hanya dapat diubah saat stok nol dan belum ada riwayat transaksi gudang.',
+          );
         if (
           current.code === parsed.data.code &&
-          current.description === parsed.data.description
+          current.description === parsed.data.description &&
+          current.unit === parsed.data.unit &&
+          current.minQty.eq(parsed.data.minQty)
         )
           return false;
         await tx.warehouseItem.update({
@@ -69,6 +78,8 @@ export async function updateWarehouseItem(
             code: parsed.data.code,
             normalizedCode: parsed.data.code,
             description: parsed.data.description,
+            unit: parsed.data.unit,
+            minQty: parsed.data.minQty,
           },
         });
         await tx.auditLog.create({
@@ -78,10 +89,15 @@ export async function updateWarehouseItem(
             entityId: current.id,
             action: 'WAREHOUSE_ITEM_UPDATED',
             metadata: {
-              before: { code: current.code, description: current.description },
+              before: {
+                code: current.code, description: current.description,
+                unit: current.unit, minQty: current.minQty.toFixed(4),
+              },
               after: {
                 code: parsed.data.code,
                 description: parsed.data.description,
+                unit: parsed.data.unit,
+                minQty: parsed.data.minQty,
               },
             },
           },
@@ -94,8 +110,8 @@ export async function updateWarehouseItem(
     return {
       status: 'success',
       message: changed
-        ? 'Kode dan nama barang gudang berhasil diperbarui.'
-        : 'Kode dan nama barang tidak berubah.',
+        ? 'Data barang gudang berhasil diperbarui.'
+        : 'Data barang gudang tidak berubah.',
     };
   } catch (error) {
     return failure(error);

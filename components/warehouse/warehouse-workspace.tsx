@@ -43,6 +43,7 @@ function ReceiveForm({ data, requestId, actorName }: FormProps) {
   const item = data.items.find(row => row.id === itemId);
   return <form action={action} className="mt-4 space-y-3">
     <input type="hidden" name="requestId" value={requestId} />
+    <input type="hidden" name="expectedUnit" value={item?.unit ?? ''} />
     <fieldset disabled={data.demoMode || pending || !data.items.length} className="grid gap-3 sm:grid-cols-2">
       <Field label="Material gudang"><select className={inputClass} name="warehouseItemId" value={itemId} required onChange={event => setItemId(event.target.value)}>
         <option value="">Pilih material gudang</option>{data.items.map(row => <option key={row.id} value={row.id}>{row.code} — {row.description} · {row.quantity} {row.unit}</option>)}

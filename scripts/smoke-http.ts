@@ -1210,20 +1210,32 @@ try {
     }
     const whAction=(name:string)=>actionStateForm(name,'app/actions/warehouse.ts');
     const createStock=await whAction('createWarehouseItem');
-    await post('/warehouse',createStock,{code:'WH-CABLE',description:'QA warehouse cable',unit:'M',location:'QA Rack A1',minQty:'2'});
+    await post('/warehouse',createStock,{code:'WH-CABLE',description:'QA warehouse cable',unit:'PCS',location:'QA Rack A1',minQty:'2'});
     const stockId=String((await warehouseDb.query(`SELECT id FROM "WarehouseItem" WHERE "normalizedCode"='WH-CABLE'`)).rows[0]?.id);
     assert.notEqual(stockId,'undefined','PM should create a warehouse SKU');
     const balance=async(id=stockId)=>String((await warehouseDb.query(`SELECT quantity::text AS quantity FROM "WarehouseItem" WHERE id=$1`,[id])).rows[0].quantity);
     const projectBalance=async(suffix='a')=>(await warehouseDb.query(`SELECT "receivedQty"::text AS received,"warehouseIssuedQty"::text AS issued,"installedQty"::text AS installed FROM "Material" WHERE id=$1`,[`wh-material-${suffix}`])).rows[0];
     const movementCount=async(requestId:string)=>Number((await warehouseDb.query(`SELECT count(*) AS count FROM "WarehouseMovement" WHERE "requestId"=$1`,[requestId])).rows[0].count);
     const stockIdentity=async(id=stockId)=>(await warehouseDb.query(`SELECT id,code,"normalizedCode",description,unit,location,"minQty"::text AS "minQty",quantity::text AS quantity,to_char("updatedAt",'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "updatedAt" FROM "WarehouseItem" WHERE id=$1`,[id])).rows[0];
-    const stockInvariant=(row:Record<string,string>)=>Object.fromEntries(['id','unit','location','minQty','quantity'].map(key=>[key,row[key]]));
-    const editValues=(row:Record<string,string>,code=row.code,description=row.description)=>({id:row.id,updatedAt:row.updatedAt,code,description});
+    const stockInvariant=(row:Record<string,string>)=>Object.fromEntries(['id','location','quantity'].map(key=>[key,row[key]]));
+    const editValues=(row:Record<string,string>,code=row.code,description=row.description)=>({id:row.id,updatedAt:row.updatedAt,code,description,unit:row.unit,minQty:row.minQty});
+    const lowStockMetric=async()=>{
+      const html=await(await request('/warehouse')).text();
+      const value=html.match(/Stok ≤ minimum<\/p>\s*<p\b[^>]*>(\d+)<\/p>/)?.[1];
+      assert.notEqual(value,undefined,'Warehouse low-stock metric should render');return Number(value);
+    };
     const editAuditCount=async()=>Number((await warehouseDb.query(`SELECT count(*) AS count FROM "AuditLog" WHERE "entityType"='WarehouseItem' AND "entityId"=$1 AND action='WAREHOUSE_ITEM_UPDATED'`,[stockId])).rows[0].count);
+    const unstockedIdentity=await stockIdentity();
+    await post('/warehouse',await whAction('updateWarehouseItem'),{...editValues(unstockedIdentity),unit:'  m  '});
     const initialStockIdentity=await stockIdentity();
+    assert.equal(initialStockIdentity.unit,'M','A unit can be corrected before its first stock transaction');
+    assert.deepEqual(stockInvariant(initialStockIdentity),stockInvariant(unstockedIdentity));
     assert.equal(await balance(),'0.0000');
     const receiptForm=await whAction('receiveWarehouseStock');
-    const receipt={requestId:randomUUID(),warehouseItemId:stockId,quantity:'10.5',referenceNo:'WH-IN-001',recipient:'QA warehouse keeper',notes:'Synthetic receipt'};
+    const receipt={requestId:randomUUID(),warehouseItemId:stockId,expectedUnit:'M',quantity:'10.5',referenceNo:'WH-IN-001',recipient:'QA warehouse keeper',notes:'Synthetic receipt'};
+    await post('/warehouse',receiptForm,{...receipt,expectedUnit:'PCS'});
+    assert.equal(await balance(),'0.0000','A first receipt opened before a unit correction must not credit stock');
+    assert.equal(await movementCount(receipt.requestId),0);
     await post('/warehouse',receiptForm,receipt);
     assert.equal(await balance(),'10.5000');
     await post('/warehouse',receiptForm,receipt);
@@ -1233,25 +1245,44 @@ try {
     assert.equal(await balance(),'10.5000','Equivalent exact quantities should remain an idempotent retry');
     await post('/warehouse',receiptForm,{...receipt,quantity:'11'});
     assert.equal(await balance(),'10.5000','Same request ID with altered payload must not apply');
+    const zeroBalanceIssue={requestId:randomUUID(),warehouseItemId:stockId,materialId:'wh-material-b',quantity:'10.5',referenceNo:'WH-UNIT-HISTORY-OUT',recipient:'QA unit correction test',notes:'Isolated unit history fixture'};
+    await post('/warehouse',await whAction('issueWarehouseStock'),zeroBalanceIssue);
+    assert.equal(await balance(),'0.0000');
+    const zeroBalanceIdentity=await stockIdentity();
+    await post('/warehouse',await whAction('updateWarehouseItem'),{...editValues(zeroBalanceIdentity),unit:'PCS'});
+    assert.deepEqual(await stockIdentity(),zeroBalanceIdentity,'Net-zero stock with movement history must not allow a unit change');
+    const zeroBalanceIssueId=String((await warehouseDb.query(`SELECT id FROM "WarehouseMovement" WHERE "requestId"=$1`,[zeroBalanceIssue.requestId])).rows[0].id);
+    await post('/warehouse',await whAction('returnWarehouseStock'),{requestId:randomUUID(),issueId:zeroBalanceIssueId,quantity:'10.5',referenceNo:'WH-UNIT-HISTORY-RETURN',recipient:'QA warehouse keeper',notes:'Restore isolated unit history fixture'});
+    assert.equal(await balance(),'10.5000');
+    assert.deepEqual(await projectBalance('b'),{received:'0.0000',issued:'0.0000',installed:'0.0000'});
     const beforeIdentityEdit=await stockIdentity();
+    const lowStockBeforeEdit=await lowStockMetric();
     await post('/warehouse',await whAction('updateWarehouseItem'),editValues(initialStockIdentity,'WH-STALE-RECEIPT','Stale receipt identity'));
     assert.deepEqual(await stockIdentity(),beforeIdentityEdit,'A stock movement must invalidate an older edit version');
-    await post('/warehouse',await whAction('updateWarehouseItem'),{...editValues(beforeIdentityEdit,'  wh-cable-edited  ','  QA renamed warehouse cable  '),quantity:'99999',unit:'PCS',location:'Injected rack',minQty:'9999'});
+    await post('/warehouse',await whAction('updateWarehouseItem'),{...editValues(beforeIdentityEdit,'  wh-cable-edited  ','  QA renamed warehouse cable  '),quantity:'99999',location:'Injected rack',minQty:'12'});
     const editedStock=await stockIdentity();
     assert.equal(editedStock.code,'WH-CABLE-EDITED');
     assert.equal(editedStock.normalizedCode,'WH-CABLE-EDITED');
     assert.equal(editedStock.description,'QA renamed warehouse cable');
-    assert.deepEqual(stockInvariant(editedStock),stockInvariant(beforeIdentityEdit),'Renaming must preserve the SKU ID, balance, unit, rack and minimum');
+    assert.equal(editedStock.unit,'M');
+    assert.equal(editedStock.minQty,'12.0000','Minimum stock may be edited even after warehouse movements');
+    assert.equal(await lowStockMetric(),lowStockBeforeEdit+1,'A changed minimum must immediately update the warehouse low-stock metric');
+    assert.deepEqual(stockInvariant(editedStock),stockInvariant(beforeIdentityEdit),'Editing master data must preserve the SKU ID, balance and rack');
     const editAudit=(await warehouseDb.query(`SELECT "userId",metadata FROM "AuditLog" WHERE "entityType"='WarehouseItem' AND "entityId"=$1 AND action='WAREHOUSE_ITEM_UPDATED' ORDER BY "createdAt" DESC LIMIT 1`,[stockId])).rows[0];
     assert.equal(editAudit.userId,'smoke-pm');
-    assert.deepEqual(editAudit.metadata,{before:{code:'WH-CABLE',description:'QA warehouse cable'},after:{code:'WH-CABLE-EDITED',description:'QA renamed warehouse cable'}});
+    assert.deepEqual(editAudit.metadata,{before:{code:'WH-CABLE',description:'QA warehouse cable',unit:'M',minQty:'2.0000'},after:{code:'WH-CABLE-EDITED',description:'QA renamed warehouse cable',unit:'M',minQty:'12.0000'}});
     assert.equal((await warehouseDb.query(`SELECT "warehouseItemId" FROM "WarehouseMovement" WHERE "requestId"=$1`,[receipt.requestId])).rows[0].warehouseItemId,stockId);
     assert.equal((await warehouseDb.query(`SELECT code FROM "Material" WHERE id='wh-material-a'`)).rows[0].code,'WH-CABLE');
     assert.equal((await warehouseDb.query(`SELECT "itemCode" FROM "BoqItem" WHERE id='wh-boq-item-a'`)).rows[0].itemCode,'WH-CABLE','Approved BoQ codes must not be rewritten by a warehouse edit');
     const beforeRejectedEdit=await editAuditCount();
-    for(const invalid of [{code:' '},{description:' '},{updatedAt:'invalid'},{id:'missing-stock-item'}]) {
+    for(const invalid of [{code:' '},{description:' '},{updatedAt:'invalid'},{id:'missing-stock-item'},{unit:' '},{unit:'PCS'},{minQty:'-1'},{minQty:'1e3'},{minQty:'1.12345'}]) {
       await post('/warehouse',await whAction('updateWarehouseItem'),{...editValues(editedStock),...invalid});
       assert.deepEqual(await stockIdentity(),editedStock,'Invalid or missing warehouse identities must not mutate stock');
+    }
+    for(const field of ['unit','minQty']) {
+      const missing:Record<string,string>=editValues(editedStock);delete missing[field];
+      await post('/warehouse',await whAction('updateWarehouseItem'),missing);
+      assert.deepEqual(await stockIdentity(),editedStock,'Missing edit values must not silently reset unit or minimum');
     }
     await post('/warehouse',await whAction('updateWarehouseItem'),editValues(beforeIdentityEdit,'WH-STALE-EDIT','Stale edit identity'));
     assert.deepEqual(await stockIdentity(),editedStock,'An older editor cannot overwrite a saved rename');
@@ -1266,8 +1297,11 @@ try {
     assert.ok(['WH-EDIT-RACE-0','WH-EDIT-RACE-1'].includes(raceEditedStock.code));
     assert.deepEqual(stockInvariant(raceEditedStock),stockInvariant(beforeIdentityEdit));
     assert.equal(await editAuditCount(),beforeRejectedEdit+1,'Only one overlapping edit may use the same version');
-    await post('/warehouse',await whAction('updateWarehouseItem'),editValues(raceEditedStock,'WH-CABLE','QA warehouse cable'));
+    const lowStockBeforeRestore=await lowStockMetric();
+    await post('/warehouse',await whAction('updateWarehouseItem'),{...editValues(raceEditedStock,'WH-CABLE','QA warehouse cable'),minQty:'2'});
     assert.equal((await stockIdentity()).code,'WH-CABLE');
+    assert.equal((await stockIdentity()).minQty,'2.0000');
+    assert.equal(await lowStockMetric(),lowStockBeforeRestore-1);
     const viewerEditForm=await whAction('updateWarehouseItem');
     const beforeViewerEdit=await stockIdentity();
     const issueForm=await whAction('issueWarehouseStock');
@@ -1366,7 +1400,7 @@ try {
     assert.equal(adminEditedStock.code,'WH-CABLE-ADMIN');
     assert.equal(adminEditedStock.description,'QA administrator warehouse edit');
     assert.deepEqual(stockInvariant(adminEditedStock),stockInvariant(beforeAdminEdit),'Admin identity edits must also preserve stock');
-    console.log('PASS warehouse identity editing: PM/Admin access, Viewer denial, normalized duplicates, stale/concurrent edits, immutable balances, audit, BoQ matching and returns after rename');
+    console.log('PASS warehouse editing: PM/Admin access, Viewer denial, safe unit corrections, minimum/low-stock updates, stale receipt units, normalized duplicates, stale/concurrent edits, immutable balances, audit, BoQ matching and returns after rename');
     console.log('PASS warehouse receipt/issue/return, exact fractional stock, BoQ linkage, retry safety, code/unit validation, history returns, Viewer denial, and concurrent stock protection');
   } finally {await warehouseDb.end();}
   console.log('All HTTP acceptance checks passed.');

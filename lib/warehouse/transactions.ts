@@ -42,6 +42,7 @@ export async function recordWarehouseMovement(actor:CurrentUser,type:MovementKin
    const stock=await tx.warehouseItem.findUnique({where:{id:warehouseItemId}});
    if(!stock)throw new WarehouseError('Material gudang tidak ditemukan.');
    if(checkReplay(await tx.warehouseMovement.findUnique({where:{requestId:input.requestId},select:{payloadHash:true}}),hash))return {duplicate:true};
+   if(type==='RECEIPT'&&(!('expectedUnit' in input)||input.expectedUnit!==stock.unit))throw new WarehouseError('Satuan material gudang berubah sejak form Barang masuk dibuka. Muat ulang halaman lalu pilih material kembali.');
    const qty=new Prisma.Decimal(input.quantity);
    let balance=stock.quantity,materialId:string|null=null,boqItemId:string|null=null;
    let receivedBefore:string|null=null,receivedAfter:string|null=null;

@@ -14,7 +14,7 @@ export async function getWarehouseWorkspaceData(user: CurrentUser, returnSearch 
     metrics: { items: 0, lowStock: 0, emptyStock: 0, movements: 0 },
   };
   const [items, materials, movements, issues, movementCount] = await Promise.all([
-    prisma.warehouseItem.findMany({ orderBy: { code: 'asc' } }),
+    prisma.warehouseItem.findMany({ orderBy: { code: 'asc' }, include: { _count: { select: { movements: true } } } }),
     prisma.material.findMany({
       where: {
         isActive: true, normalizedCode: { not: null },
@@ -59,6 +59,7 @@ export async function getWarehouseWorkspaceData(user: CurrentUser, returnSearch 
       id: item.id, code: item.code, normalizedCode: item.normalizedCode, description: item.description,
       unit: item.unit, location: item.location, minQty: item.minQty.toString(), quantity: item.quantity.toString(),
       lowStock: item.quantity.lte(item.minQty), updatedAt: item.updatedAt.toISOString(),
+      canEditUnit: item.quantity.isZero() && item._count.movements === 0,
     })),
     materials: materials.map(material => ({
       id: material.id, projectId: material.projectId, projectLabel: `${material.project.code} — ${material.project.name}`,
