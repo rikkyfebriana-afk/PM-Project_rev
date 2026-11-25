@@ -46,7 +46,7 @@ export default function LoginPage() {
           <div className={styles.orbit} aria-hidden="true" />
 
           <div className="relative z-10 flex items-center gap-4">
-            <div className="flex size-[72px] shrink-0 items-center justify-center rounded-2xl bg-[#fffdf7] p-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+            <div className="flex size-20 shrink-0 items-center justify-center rounded-[20px] bg-[#fffdf7] p-0.5 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
               <CompanyLogo className="size-full" />
             </div>
             <div className="min-w-0">
