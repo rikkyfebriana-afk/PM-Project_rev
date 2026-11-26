@@ -8,11 +8,22 @@ import { getBoqWorkspaceData } from '@/lib/boq/queries';
 
 export const metadata = { title: 'Bill of Quantities' };
 
-export default async function BoqPage() {
+export default async function BoqPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ projectId?: string; revisionId?: string }>;
+}) {
   const user = await requireUser();
-  const data = await getBoqWorkspaceData(user);
+  const params = await searchParams;
+  const data = await getBoqWorkspaceData(user, {
+    projectId:
+      typeof params.projectId === 'string' ? params.projectId : undefined,
+    revisionId:
+      typeof params.revisionId === 'string' ? params.revisionId : undefined,
+  });
   return (
     <BoqImportWorkspace
+      key={data.costing?.projectId ?? 'no-project'}
       data={data}
       commitAction={commitBoqImportAction}
       approveAction={approveBoqRevisionAction}

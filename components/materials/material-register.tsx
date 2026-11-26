@@ -34,6 +34,7 @@ import {
 
 type Props = {
   data: MaterialWorkspaceData;
+  initialProjectId?: string;
   updateAction: (
     state: MaterialActionState,
     formData: FormData,
@@ -273,9 +274,17 @@ function MaterialEditor({
   );
 }
 
-export function MaterialRegister({ data, updateAction }: Props) {
+export function MaterialRegister({
+  data,
+  updateAction,
+  initialProjectId = 'ALL',
+}: Props) {
   const [search, setSearch] = useState('');
-  const [projectId, setProjectId] = useState('ALL');
+  const [projectId, setProjectId] = useState(() =>
+    data.materials.some((material) => material.projectId === initialProjectId)
+      ? initialProjectId
+      : 'ALL',
+  );
   const [status, setStatus] = useState<'ALL' | MaterialStatusValue>('ALL');
   const [activeOnly, setActiveOnly] = useState(true);
   const [editorId, setEditorId] = useState<string | null>(null);

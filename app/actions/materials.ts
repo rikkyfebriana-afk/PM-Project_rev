@@ -113,7 +113,8 @@ export async function updateMaterialAction(
         return { outcome: 'status-conflict' as const };
       }
 
-      if(received.lt(current.warehouseIssuedQty)) return {outcome:'warehouse-floor' as const};
+      if (received.lt(current.warehouseIssuedQty))
+        return { outcome: 'warehouse-floor' as const };
       const updated = await transaction.material.updateMany({
         where: { id: current.id, updatedAt: current.updatedAt, isActive: true },
         data: {
@@ -168,9 +169,15 @@ export async function updateMaterialAction(
           'Status material tidak sesuai dengan quantity ordered, received, installed, dan kebutuhan.',
       };
     }
-    if(outcome.outcome==='warehouse-floor')return {status:'error',message:'Received quantity tidak boleh di bawah jumlah bersih dari gudang. Gunakan Retur ke gudang untuk mengembalikan stok.'};
+    if (outcome.outcome === 'warehouse-floor')
+      return {
+        status: 'error',
+        message:
+          'Received quantity tidak boleh di bawah jumlah bersih dari gudang. Gunakan Retur ke gudang untuk mengembalikan stok.',
+      };
 
     revalidatePath('/materials');
+    revalidatePath('/boq/materials');
     revalidatePath('/warehouse');
     revalidatePath('/dashboard');
     return {

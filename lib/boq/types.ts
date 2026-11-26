@@ -77,6 +77,8 @@ export type BoqApprovalResult = {
   createdMaterials: number;
   updatedMaterials: number;
   deactivatedMaterials: number;
+  budgetValue: string;
+  previousBudgetValue: string;
 };
 
 export type BoqApprovalActionState =
@@ -125,6 +127,7 @@ export type BoqWorkspaceData = {
   canApprove: boolean;
   projects: BoqWorkspaceProject[];
   boqs: BoqWorkspaceRevision[];
+  costing: BoqProjectCosting | null;
   metrics: {
     versions: number;
     approved: number;
@@ -132,4 +135,39 @@ export type BoqWorkspaceData = {
     items: number;
     totalValue: string;
   };
+};
+
+export type BoqCostItem = {
+  id: string;
+  itemNo: string;
+  itemCode: string | null;
+  itemType: BoqItemTypeValue;
+  description: string;
+  unit: string;
+  quantity: string;
+  unitPrice: string;
+  lineTotal: string;
+  receivedQty: string | null;
+  installedQty: string | null;
+  warehouseIssuedQty: string | null;
+};
+
+export type BoqProjectCosting = {
+  projectId: string;
+  projectUpdatedAt: string;
+  projectBudgetValue: string;
+  approvedBoqId: string | null;
+  approvedVersion: number | null;
+  approvedTotalValue: string | null;
+  /** Approved BoQ total minus the stored project budget. */
+  differenceValue: string | null;
+  revision: {
+    id: string;
+    version: number;
+    status: BoqStatusValue;
+    totalValue: string;
+    subtotals: Record<BoqItemTypeValue, string>;
+    zeroHppCount: number;
+    items: BoqCostItem[];
+  } | null;
 };

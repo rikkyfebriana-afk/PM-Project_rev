@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import ExcelJS from 'exceljs';
 import pg from 'pg';
+import { smokeMaterialOrders, smokeBoqCosting } from './smoke-material-orders.ts';
 
 // End-to-end requests against the isolated fixture, using the real server-rendered action forms.
 const base = 'http://localhost:3001';
@@ -1403,6 +1404,8 @@ try {
     console.log('PASS warehouse editing: PM/Admin access, Viewer denial, safe unit corrections, minimum/low-stock updates, stale receipt units, normalized duplicates, stale/concurrent edits, immutable balances, audit, BoQ matching and returns after rename');
     console.log('PASS warehouse receipt/issue/return, exact fractional stock, BoQ linkage, retry safety, code/unit validation, history returns, Viewer denial, and concurrent stock protection');
   } finally {await warehouseDb.end();}
+  await smokeMaterialOrders({request,post,login,actionStateForm,approveViaHttp});
+  await smokeBoqCosting({request,post,login,actionStateForm,approveViaHttp});
   console.log('All HTTP acceptance checks passed.');
 } catch (error) {
   console.error(error instanceof Error ? error.stack : error);

@@ -20,11 +20,28 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
         await readFile(new URL(`${dir}/migration.sql`, root), 'utf8'),
       );
     }
-    await db.exec(`INSERT INTO "User" ("id","username","normalizedUsername","displayName","passwordHash","updatedAt") VALUES ('viewer-test','viewer-test','viewer-test','Viewer test','unused',now());`);
-    const defaults = await db.query<{viewerPortfolioAccess:boolean;viewerAccessVersion:number}>(`SELECT "viewerPortfolioAccess","viewerAccessVersion" FROM "User" WHERE "id"='viewer-test'`);
-    assert.deepEqual(defaults.rows[0],{viewerPortfolioAccess:false,viewerAccessVersion:0});
-    await db.exec(`INSERT INTO "ViewerPermission" ("userId","projectId","scopes","updatedAt") VALUES ('viewer-test','legacy',ARRAY['PROJECT','MATERIALS','BOQ'],now());`);
-    await assert.rejects(db.exec(`UPDATE "ViewerPermission" SET scopes=ARRAY['PROJECT','INVALID'] WHERE "userId"='viewer-test'`),/check constraint/);
+    await db.exec(
+      `INSERT INTO "User" ("id","username","normalizedUsername","displayName","passwordHash","updatedAt") VALUES ('viewer-test','viewer-test','viewer-test','Viewer test','unused',now());`,
+    );
+    const defaults = await db.query<{
+      viewerPortfolioAccess: boolean;
+      viewerAccessVersion: number;
+    }>(
+      `SELECT "viewerPortfolioAccess","viewerAccessVersion" FROM "User" WHERE "id"='viewer-test'`,
+    );
+    assert.deepEqual(defaults.rows[0], {
+      viewerPortfolioAccess: false,
+      viewerAccessVersion: 0,
+    });
+    await db.exec(
+      `INSERT INTO "ViewerPermission" ("userId","projectId","scopes","updatedAt") VALUES ('viewer-test','legacy',ARRAY['PROJECT','MATERIALS','BOQ'],now());`,
+    );
+    await assert.rejects(
+      db.exec(
+        `UPDATE "ViewerPermission" SET scopes=ARRAY['PROJECT','INVALID'] WHERE "userId"='viewer-test'`,
+      ),
+      /check constraint/,
+    );
     const opening = await db.query<{ value: string }>(
       `SELECT "costOpeningBalance"::text AS value FROM "Project" WHERE "id"='legacy'`,
     );
@@ -67,19 +84,111 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
     );
     await db.exec(`INSERT INTO "WarehouseItem" (id,code,"normalizedCode",description,unit,quantity,"updatedAt") VALUES ('wh-db','WH-DB','WH-DB','Warehouse fixture','M',5,now());
       INSERT INTO "Material" (id,"projectId","boqItemId",description,unit,"requiredQty","receivedQty","warehouseIssuedQty",status,"updatedAt") VALUES ('wh-db-material','legacy','i1','Warehouse material fixture','M',10,5,3,'PARTIAL',now());`);
-    await assert.rejects(db.exec(`INSERT INTO "WarehouseItem" (id,code,"normalizedCode",description,unit,"updatedAt") VALUES ('wh-duplicate','WH-DB','WH-DB','Duplicate fixture','M',now())`),/unique constraint/);
-    await assert.rejects(db.exec(`UPDATE "WarehouseItem" SET quantity=-1 WHERE id='wh-db'`),/check constraint/);
-    await assert.rejects(db.exec(`UPDATE "WarehouseItem" SET "minQty"=-1 WHERE id='wh-db'`),/check constraint/);
-    await assert.rejects(db.exec(`UPDATE "Material" SET "receivedQty"=2 WHERE id='wh-db-material'`),/check constraint/);
-    await assert.rejects(db.exec(`UPDATE "Material" SET "warehouseIssuedQty"=-1 WHERE id='wh-db-material'`),/check constraint/);
-    await db.exec(`INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-receipt','wh-db-request','fixture','viewer-test','RECEIPT',2,7,'wh-db','WH-IN-DB','Fixture keeper');`);
-    await assert.rejects(db.exec(`UPDATE "WarehouseMovement" SET quantity=3 WHERE id='wh-db-receipt'`),/immutable/);
-    await assert.rejects(db.exec(`DELETE FROM "WarehouseMovement" WHERE id='wh-db-receipt'`),/immutable/);
-    await assert.rejects(db.exec(`INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-zero','wh-db-zero','fixture','viewer-test','RECEIPT',0,7,'wh-db','WH-ZERO','Fixture keeper')`),/check constraint/);
-    await assert.rejects(db.exec(`INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-negative','wh-db-negative','fixture','viewer-test','RECEIPT',1,-1,'wh-db','WH-NEGATIVE','Fixture keeper')`),/check constraint/);
-    await assert.rejects(db.exec(`INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-duplicate','wh-db-request','fixture','viewer-test','RECEIPT',2,7,'wh-db','WH-DUPLICATE','Fixture keeper')`),/unique constraint/);
-    await assert.rejects(db.exec(`INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-invalid-issue','wh-db-invalid-issue','fixture','viewer-test','ISSUE',1,4,'wh-db','WH-OUT','Fixture keeper')`),/check constraint/);
-    await assert.rejects(db.exec(`INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient,"projectId","materialId","boqItemId") VALUES ('wh-db-foreign-issue','wh-db-foreign-issue','fixture','viewer-test','ISSUE',1,4,'wh-db','WH-OUT','Fixture keeper','p2','wh-db-material','i1')`),/foreign key constraint/);
+    await assert.rejects(
+      db.exec(
+        `INSERT INTO "WarehouseItem" (id,code,"normalizedCode",description,unit,"updatedAt") VALUES ('wh-duplicate','WH-DB','WH-DB','Duplicate fixture','M',now())`,
+      ),
+      /unique constraint/,
+    );
+    await assert.rejects(
+      db.exec(`UPDATE "WarehouseItem" SET quantity=-1 WHERE id='wh-db'`),
+      /check constraint/,
+    );
+    await assert.rejects(
+      db.exec(`UPDATE "WarehouseItem" SET "minQty"=-1 WHERE id='wh-db'`),
+      /check constraint/,
+    );
+    await db.exec(
+      `INSERT INTO "MaterialOrder" (id,"requestId","payloadHash","warehouseItemId","itemCode",description,unit,quantity,"createdById","updatedAt") VALUES ('order-db','order-db-request','fixture','wh-db','WH-DB','Warehouse order fixture','M',4,'viewer-test',now())`,
+    );
+    await assert.rejects(
+      db.exec(
+        `INSERT INTO "MaterialOrder" (id,"requestId","payloadHash","warehouseItemId","itemCode",description,unit,quantity,"createdById","updatedAt") VALUES ('order-db-duplicate','order-db-duplicate','fixture','wh-db','WH-DB','Duplicate order fixture','M',4,'viewer-test',now())`,
+      ),
+      /unique constraint/,
+    );
+    for (const assignment of [
+      `quantity=0`,
+      `"receivedQty"=5`,
+      `status='INVALID'`,
+      `status='RECEIVED'`,
+      `status='ORDERED'`,
+      `status='CANCELLED'`,
+    ]) {
+      await assert.rejects(
+        db.exec(`UPDATE "MaterialOrder" SET ${assignment} WHERE id='order-db'`),
+        /check constraint/,
+      );
+    }
+    await db.exec(
+      `UPDATE "MaterialOrder" SET status='PARTIAL',supplier='Fixture supplier',"referenceNo"='ORDER-DB',"receivedQty"=2 WHERE id='order-db'`,
+    );
+    await assert.rejects(
+      db.exec(`DELETE FROM "WarehouseItem" WHERE id='wh-db'`),
+      /foreign key constraint/,
+    );
+    await db.exec(
+      `UPDATE "MaterialOrder" SET status='CANCELLED',"cancellationReason"='Fixture cancelled remainder' WHERE id='order-db'`,
+    );
+    const retained = await db.query<{ quantity: string }>(
+      `SELECT "receivedQty"::text AS quantity FROM "MaterialOrder" WHERE id='order-db'`,
+    );
+    assert.equal(retained.rows[0].quantity, '2.0000');
+    await assert.rejects(
+      db.exec(
+        `UPDATE "Material" SET "receivedQty"=2 WHERE id='wh-db-material'`,
+      ),
+      /check constraint/,
+    );
+    await assert.rejects(
+      db.exec(
+        `UPDATE "Material" SET "warehouseIssuedQty"=-1 WHERE id='wh-db-material'`,
+      ),
+      /check constraint/,
+    );
+    await db.exec(
+      `INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-receipt','wh-db-request','fixture','viewer-test','RECEIPT',2,7,'wh-db','WH-IN-DB','Fixture keeper');`,
+    );
+    await assert.rejects(
+      db.exec(
+        `UPDATE "WarehouseMovement" SET quantity=3 WHERE id='wh-db-receipt'`,
+      ),
+      /immutable/,
+    );
+    await assert.rejects(
+      db.exec(`DELETE FROM "WarehouseMovement" WHERE id='wh-db-receipt'`),
+      /immutable/,
+    );
+    await assert.rejects(
+      db.exec(
+        `INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-zero','wh-db-zero','fixture','viewer-test','RECEIPT',0,7,'wh-db','WH-ZERO','Fixture keeper')`,
+      ),
+      /check constraint/,
+    );
+    await assert.rejects(
+      db.exec(
+        `INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-negative','wh-db-negative','fixture','viewer-test','RECEIPT',1,-1,'wh-db','WH-NEGATIVE','Fixture keeper')`,
+      ),
+      /check constraint/,
+    );
+    await assert.rejects(
+      db.exec(
+        `INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-duplicate','wh-db-request','fixture','viewer-test','RECEIPT',2,7,'wh-db','WH-DUPLICATE','Fixture keeper')`,
+      ),
+      /unique constraint/,
+    );
+    await assert.rejects(
+      db.exec(
+        `INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient) VALUES ('wh-db-invalid-issue','wh-db-invalid-issue','fixture','viewer-test','ISSUE',1,4,'wh-db','WH-OUT','Fixture keeper')`,
+      ),
+      /check constraint/,
+    );
+    await assert.rejects(
+      db.exec(
+        `INSERT INTO "WarehouseMovement" (id,"requestId","payloadHash","actorId",type,quantity,"balanceAfter","warehouseItemId","referenceNo",recipient,"projectId","materialId","boqItemId") VALUES ('wh-db-foreign-issue','wh-db-foreign-issue','fixture','viewer-test','ISSUE',1,4,'wh-db','WH-OUT','Fixture keeper','p2','wh-db-material','i1')`,
+      ),
+      /foreign key constraint/,
+    );
     await assert.rejects(
       db.exec(
         `INSERT INTO "BoqItem" ("id","boqId","itemNo","description","unit","quantity","unitPrice","lineTotal") VALUES ('i2','b1','2','Cable','M',1,100,100)`,
@@ -141,16 +250,41 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
     }>(
       `SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname='public'`,
     );
-    assert.equal(security.rows.length, 20);
+    assert.equal(security.rows.length, 21);
     assert.ok(security.rows.every((row) => row.rowsecurity));
     await db.exec('SET ROLE anon');
-    await assert.rejects(db.query('SELECT * FROM public."Invoice"'), /permission denied/);
-    await assert.rejects(db.query('SELECT * FROM public."InvoicePayment"'), /permission denied/);
-    await assert.rejects(db.query('SELECT * FROM public."WarehouseItem"'), /permission denied/);
-    await assert.rejects(db.query('SELECT * FROM public."WarehouseMovement"'), /permission denied/);
-    await assert.rejects(db.query('SELECT * FROM public."ViewerPermission"'), /permission denied/);
-    await assert.rejects(db.query('SELECT * FROM public."DailyTarget"'), /permission denied/);
-    await assert.rejects(db.query('SELECT * FROM public."Quotation"'), /permission denied/);
+    await assert.rejects(
+      db.query('SELECT * FROM public."Invoice"'),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query('SELECT * FROM public."InvoicePayment"'),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query('SELECT * FROM public."WarehouseItem"'),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query('SELECT * FROM public."WarehouseMovement"'),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query('SELECT * FROM public."MaterialOrder"'),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query('SELECT * FROM public."ViewerPermission"'),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query('SELECT * FROM public."DailyTarget"'),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query('SELECT * FROM public."Quotation"'),
+      /permission denied/,
+    );
     await assert.rejects(
       db.query('SELECT * FROM public."PlanTask"'),
       /permission denied/,
@@ -160,13 +294,38 @@ test('all PostgreSQL migrations apply and protect baseline, project links and co
       /permission denied/,
     );
     await db.exec('RESET ROLE; SET ROLE authenticated');
-    await assert.rejects(db.query('SELECT * FROM public."Invoice"'), /permission denied/);
-    await assert.rejects(db.query('SELECT * FROM public."InvoicePayment"'), /permission denied/);
-    await assert.rejects(db.query('SELECT * FROM public."WarehouseItem"'), /permission denied/);
-    await assert.rejects(db.query('SELECT * FROM public."WarehouseMovement"'), /permission denied/);
-    await assert.rejects(db.query('SELECT * FROM public."ViewerPermission"'), /permission denied/);
-    await assert.rejects(db.query('SELECT * FROM public."DailyTarget"'), /permission denied/);
-    await assert.rejects(db.query('SELECT * FROM public."Quotation"'), /permission denied/);
+    await assert.rejects(
+      db.query('SELECT * FROM public."Invoice"'),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query('SELECT * FROM public."InvoicePayment"'),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query('SELECT * FROM public."WarehouseItem"'),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query('SELECT * FROM public."WarehouseMovement"'),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query('SELECT * FROM public."MaterialOrder"'),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query('SELECT * FROM public."ViewerPermission"'),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query('SELECT * FROM public."DailyTarget"'),
+      /permission denied/,
+    );
+    await assert.rejects(
+      db.query('SELECT * FROM public."Quotation"'),
+      /permission denied/,
+    );
     await assert.rejects(
       db.query('SELECT * FROM public."Project"'),
       /permission denied/,

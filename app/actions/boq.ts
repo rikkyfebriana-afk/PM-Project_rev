@@ -23,6 +23,7 @@ import { editableProjectWhere } from '@/lib/projects/access';
 import { getSupabaseAdmin } from '@/lib/storage/supabase-admin';
 
 const INSERT_BATCH_SIZE = 250;
+const CostDecimal = Prisma.Decimal.clone({ precision: 40 });
 const commitSchema = z.object({
   projectId: z.string().trim().min(1).max(128),
   documentId: z.string().trim().min(1).max(128),
@@ -393,7 +394,8 @@ export async function approveBoqRevisionAction(
   if (!hasFullAccess(user.role)) {
     return {
       status: 'error',
-      message: 'Hanya Admin atau Project Manager yang dapat menyetujui baseline BoQ.',
+      message:
+        'Hanya Admin atau Project Manager yang dapat menyetujui baseline BoQ.',
     };
   }
 
@@ -434,7 +436,7 @@ export async function approveBoqRevisionAction(
             status: 'DRAFT',
           },
           include: {
-            project: { select: { code: true } },
+            project: { select: { code: true, budgetValue: true } },
             items: { orderBy: [{ sortOrder: 'asc' }, { itemNo: 'asc' }] },
           },
         });
@@ -449,6 +451,14 @@ export async function approveBoqRevisionAction(
           (parsed.data.expectedApprovedBoqId ?? undefined)
         ) {
           return { outcome: 'baseline-conflict' as const };
+        }
+
+        const budgetValue = draft.items.reduce(
+          (sum, item) => sum.plus(item.lineTotal),
+          new CostDecimal(0),
+        );
+        if (budgetValue.lt(0) || budgetValue.gt('9999999999999999.99')) {
+          return { outcome: 'budget-overflow' as const };
         }
 
         const materialItems = draft.items.filter(
@@ -594,6 +604,11 @@ export async function approveBoqRevisionAction(
           return { outcome: 'baseline-conflict' as const };
         }
 
+        await transaction.project.update({
+          where: { id: draft.projectId },
+          data: { budgetValue },
+        });
+
         await transaction.auditLog.create({
           data: {
             userId: user.id,
@@ -608,6 +623,8 @@ export async function approveBoqRevisionAction(
               createdMaterials,
               updatedMaterials,
               deactivatedMaterials: deactivated.count,
+              previousBudgetValue: draft.project.budgetValue.toFixed(2),
+              budgetValue: budgetValue.toFixed(2),
             },
           },
         });
@@ -620,6 +637,8 @@ export async function approveBoqRevisionAction(
             createdMaterials,
             updatedMaterials,
             deactivatedMaterials: deactivated.count,
+            previousBudgetValue: draft.project.budgetValue.toFixed(2),
+            budgetValue: budgetValue.toFixed(2),
           },
         };
       },
@@ -652,14 +671,25 @@ export async function approveBoqRevisionAction(
         issues: outcome.issues.slice(0, 20),
       };
     }
+    if (outcome.outcome === 'budget-overflow') {
+      return {
+        status: 'error',
+        message:
+          'Total BoQ melampaui batas budget proyek. Periksa jumlah dan HPP setiap item.',
+      };
+    }
 
     revalidatePath('/boq');
     revalidatePath('/materials');
     revalidatePath('/warehouse');
     revalidatePath('/dashboard');
+    revalidatePath('/finance');
+    revalidatePath('/projects');
+    revalidatePath('/reports');
+    revalidatePath('/boq/materials');
     return {
       status: 'success',
-      message: `BoQ versi ${outcome.approval.version} menjadi baseline approved.`,
+      message: `BoQ versi ${outcome.approval.version} menjadi baseline approved; total HPP menjadi budget proyek.`,
       approval: outcome.approval,
     };
   } catch {

@@ -55,13 +55,26 @@ type WorkspaceShellProps = {
 export function WorkspaceShell({ children, user }: WorkspaceShellProps) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const visibleNavigation = navigation.filter(
-    (item) => !fullAccessModules.has(item.href) || hasFullAccess(user.role),
-  );
-  const pageTitle =
-    navigation.find(
-      (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
-    )?.label ?? (pathname === '/settings' ? 'Settings' : 'Workspace');
+  const visibleNavigation = navigation
+    .filter(
+      (item) => !fullAccessModules.has(item.href) || hasFullAccess(user.role),
+    )
+    .map((item) =>
+      item.href === '/materials'
+        ? {
+            ...item,
+            label: hasFullAccess(user.role)
+              ? 'Material Status Order'
+              : 'Material Proyek',
+          }
+        : item,
+    );
+  const pageTitle = pathname.startsWith('/boq/materials')
+    ? 'Material Proyek'
+    : (visibleNavigation.find(
+        (item) =>
+          pathname === item.href || pathname.startsWith(`${item.href}/`),
+      )?.label ?? (pathname === '/settings' ? 'Settings' : 'Workspace'));
   const initials = user.displayName
     .split(/\s+/)
     .map((part) => part[0])

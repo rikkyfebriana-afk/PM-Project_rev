@@ -61,17 +61,23 @@ export function BoqManualForm({
       <p className="mt-2 text-xs leading-5 text-slate-600">
         Isi seluruh item untuk revisi baru, bukan hanya item tambahan. Draft
         sebelumnya akan menjadi Superseded; baseline approved dan material tetap
-        sampai Admin atau Project Manager menyetujui revisi baru. Form belum tersimpan sampai tombol
-        Simpan ditekan. Berpindah proyek atau memuat ulang akan mengosongkan
-        input.
+        sampai Admin atau Project Manager menyetujui revisi baru. Form belum
+        tersimpan sampai tombol Simpan ditekan. Berpindah proyek atau memuat
+        ulang akan mengosongkan input.
       </p>
-      <form action={action} className="mx-auto mt-4 w-full min-w-0 max-w-4xl space-y-4 [&_input:not([type=checkbox])]:text-center [&_select]:text-center">
+      <form
+        action={action}
+        className="mx-auto mt-4 w-full min-w-0 max-w-4xl space-y-4 [&_input:not([type=checkbox])]:text-center [&_select]:text-center"
+      >
         <input type="hidden" name="projectId" value={project.id} />
         <input type="hidden" name="expectedVersion" value={version} />
         <input type="hidden" name="manualRows" value={JSON.stringify(rows)} />
         <fieldset disabled={!enabled || pending} className="space-y-4">
           {rows.map((r, index) => (
-            <div key={index} className="min-w-0 border border-slate-200 bg-white p-3 sm:p-4">
+            <div
+              key={index}
+              className="min-w-0 border border-slate-200 bg-white p-3 sm:p-4"
+            >
               <div className="mb-3 flex flex-wrap items-center justify-center gap-4 text-sm font-semibold">
                 <span>Baris {index + 1}</span>
                 <button
@@ -152,7 +158,7 @@ export function BoqManualForm({
                     onChange={(e) => update(index, 'quantity', e.target.value)}
                   />
                 </Field>
-                <Field label="Harga satuan (Rp)">
+                <Field label="HPP per satuan (Rp)">
                   <input
                     aria-label={`Harga satuan baris ${index + 1}`}
                     className={inputClass}
@@ -208,8 +214,7 @@ export function BoqManualForm({
         <MutationFeedback state={state} />
         {!enabled && (
           <p className="text-xs text-slate-500">
-            Input hanya untuk Admin atau Project Manager; mode demo hanya
-            baca.
+            Input hanya untuk Admin atau Project Manager; mode demo hanya baca.
           </p>
         )}
       </form>

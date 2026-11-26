@@ -11,3 +11,11 @@ Admin dan PM dapat membuat Draft untuk semua proyek; Viewer hanya membaca sesuai
 Input yang belum disimpan hanya berada di form browser. Memuat ulang atau berpindah proyek mengosongkannya. Fitur ini tidak otomatis menyalin isi baseline lama ke form. Tidak dibuat dokumen file fiktif: sumber revisi ditandai `Input manual web`, tanpa sourceDocumentId, dengan audit `BOQ_MANUAL_CREATED`.
 
 Tidak ada migrasi database atau perubahan RLS. Penyimpanan memakai transaksi dan kunci proyek yang sama dengan impor/approval, sehingga alokasi nomor versi dan penggantian Draft bersifat atomik.
+
+## HPP dan anggaran proyek
+
+Rincian revisi BoQ dapat ditampilkan per proyek dan revisi. HPP per satuan × jumlah menghasilkan total per item, subtotal Material/Jasa/Lainnya, dan total BoQ. Item dengan HPP nol ditandai agar dapat dilengkapi. Jumlah diterima, terpasang, dan diterima dari gudang membantu membandingkan kebutuhan dengan realisasi material.
+
+Approval baseline baru memakai total seluruh item BoQ sebagai budget proyek dalam transaksi yang sama. Konfirmasi approval menjelaskan perubahan ini. Budget proyek dari baseline lama tidak diganti otomatis saat pembaruan aplikasi; Admin/PM dapat memakai pilihan penyesuaian budget dari baseline approved setelah memeriksa nilai lama dan nilai penggantinya. Biaya aktual Finance tidak diubah.
+
+Tautan Material Proyek membuka register kebutuhan dan realisasi lama. Akses rincian HPP mengikuti izin BoQ; izin Material saja tidak membuka harga atau budget.

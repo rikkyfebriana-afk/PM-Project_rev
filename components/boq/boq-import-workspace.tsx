@@ -1,5 +1,8 @@
 'use client';
+import Link from 'next/link';
 import { BoqManualForm } from './boq-manual-form';
+import { BoqCostWorkspace } from './boq-cost-workspace';
+import { exactPoMoney } from '@/lib/finance/po-summary';
 
 import {
   type ChangeEvent,
@@ -85,17 +88,10 @@ type BoqImportWorkspaceProps = {
   approveAction: (input: BoqApprovalPayload) => Promise<BoqApprovalActionState>;
 };
 
-const moneyFormatter = new Intl.NumberFormat('id-ID', {
-  style: 'currency',
-  currency: 'IDR',
-  maximumFractionDigits: 0,
-});
-
 const numberFormatter = new Intl.NumberFormat('id-ID');
 
 function formatMoney(value: string) {
-  const number = Number(value);
-  return Number.isFinite(number) ? moneyFormatter.format(number) : 'Rp0';
+  return /^\d+(?:\.\d{1,2})?$/.test(value) ? exactPoMoney(value) : 'Rp 0';
 }
 
 function formatDate(value: string) {
@@ -182,7 +178,10 @@ export function BoqImportWorkspace({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const firstEditableProject = data.projects.find((project) => project.canEdit);
   const [projectId, setProjectId] = useState(
-    firstEditableProject?.id ?? data.projects[0]?.id ?? '',
+    data.costing?.projectId ??
+      firstEditableProject?.id ??
+      data.projects[0]?.id ??
+      '',
   );
   const [file, setFile] = useState<File | null>(null);
   const [parsed, setParsed] = useState<BoqParsedWorkbook | null>(null);
@@ -370,8 +369,9 @@ export function BoqImportWorkspace({
               Bill of Quantities
             </h2>
             <p className="mt-3 text-sm leading-6 text-[#6e7e88]">
-              Input BoQ secara manual atau impor dari Excel, periksa nilai
-              setiap item, lalu simpan sebagai revisi baru dengan jejak audit.
+              Susun kebutuhan material dan pekerjaan, HPP per satuan, serta
+              total budget proyek. Input manual atau impor Excel disimpan
+              sebagai revisi dengan jejak audit.
             </p>
           </div>
           <Button
@@ -407,7 +407,7 @@ export function BoqImportWorkspace({
             accent: 'bg-[#1c9377]',
           },
           {
-            label: 'Portfolio value',
+            label: 'Total HPP BoQ approved',
             value: formatMoney(data.metrics.totalValue),
             note: 'Total baseline approved',
             accent: 'bg-[#d85832]',
@@ -430,6 +430,8 @@ export function BoqImportWorkspace({
           </article>
         ))}
       </section>
+
+      <BoqCostWorkspace data={data} />
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-6">
@@ -666,7 +668,7 @@ export function BoqImportWorkspace({
                       <th className="px-4 py-3">Description</th>
                       <th className="px-4 py-3">Unit</th>
                       <th className="px-4 py-3 text-right">Quantity</th>
-                      <th className="px-4 py-3 text-right">Unit price</th>
+                      <th className="px-4 py-3 text-right">HPP per satuan</th>
                       <th className="px-4 py-3 text-right">Line total</th>
                       <th className="w-40 px-4 py-3">Status</th>
                     </tr>
@@ -751,7 +753,7 @@ export function BoqImportWorkspace({
                       </div>
                       <div>
                         <p className="uppercase tracking-[0.08em] text-[#85929a]">
-                          Price
+                          HPP per satuan
                         </p>
                         <p className="mt-1 font-mono font-semibold text-[#2f4654]">
                           {row.unitPrice ? formatMoney(row.unitPrice) : '—'}
@@ -892,7 +894,7 @@ export function BoqImportWorkspace({
                 ['Description', 'wajib'],
                 ['Unit / UOM', 'wajib'],
                 ['Quantity', 'angka positif, maks. 4 desimal'],
-                ['Unit Price', 'angka, maks. 2 desimal'],
+                ['Unit Price (HPP per satuan)', 'angka, maks. 2 desimal'],
               ].map(([label, note]) => (
                 <div
                   key={label}
@@ -950,6 +952,12 @@ export function BoqImportWorkspace({
                       </span>
                       <span>{formatMoney(revision.totalValue)}</span>
                     </div>
+                    <Link
+                      href={`/boq?projectId=${encodeURIComponent(revision.projectId)}&revisionId=${encodeURIComponent(revision.id)}`}
+                      className="mt-3 inline-block text-xs font-medium text-[#17364a] underline underline-offset-4"
+                    >
+                      Lihat rincian HPP & pemakaian
+                    </Link>
                     <p className="mt-3 flex items-center gap-1.5 text-[10px] text-[#95a0a7]">
                       <Clock3 className="size-3" />{' '}
                       {formatDate(revision.createdAt)}
@@ -1060,7 +1068,7 @@ export function BoqImportWorkspace({
             <AlertDialogTitle>Approve baseline BoQ?</AlertDialogTitle>
             <AlertDialogDescription>
               {approvalTarget
-                ? `Revision ${approvalTarget.version} untuk ${approvalTarget.projectCode} akan menjadi baseline resmi. Baseline lama menjadi superseded dan Material Register disinkronkan.`
+                ? `Revision ${approvalTarget.version} untuk ${approvalTarget.projectCode} akan menjadi baseline resmi. Baseline lama menjadi superseded dan kebutuhan material disinkronkan. Total HPP ${formatMoney(approvalTarget.totalValue)} (material, jasa, dan lainnya) akan mengganti budget proyek di Finance. Biaya aktual tidak berubah.`
                 : 'Pilih revisi draft yang akan disetujui.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
